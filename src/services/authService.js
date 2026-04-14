@@ -71,7 +71,7 @@ exports.login = async (email, password) => {
     }
     const roles = await userRepo.getUserRoles(user.id); 
 
-    const accessToken = jwt.sign({ id: user.id, roles }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    const accessToken = jwt.sign({ id: user.id, roles }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_ACCESS_EXPIRES });
     const refreshToken = crypto.randomBytes(40).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
@@ -113,7 +113,7 @@ exports.refreshSession = async (oldRefreshToken) => {
     const accessToken = jwt.sign(
         { id: user.id, email: user.email, roles },
         process.env.JWT_SECRET,
-        { expiresIn: '15m' }
+        { expiresIn: process.env.JWT_ACCESS_EXPIRES }
     );
 
     // 5. XOAY VÒNG TOKEN (Security Best Practice)
