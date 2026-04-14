@@ -1,5 +1,4 @@
 #!/bin/bash
-
 npm init -y #Khởi tạo package.json 
 
 # Cài đặt các thư viện (dependencies) và thư viện phát triển (devDependencies)
