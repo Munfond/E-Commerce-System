@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const userRepo = require('../repositories/userRepository');
 const otpRepo = require('../repositories/otpRepository');
 const mailService = require('./mailService');
+const tokenService = require('./tokenService');
 const tokenRepo = require('../repositories/tokenRepository');
 const crypto = require('crypto');
 
@@ -71,15 +72,14 @@ exports.login = async (email, password) => {
     }
     const roles = await userRepo.getUserRoles(user.id); 
 
-    const accessToken = jwt.sign({ id: user.id, roles }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_ACCESS_EXPIRES });
-    const refreshToken = crypto.randomBytes(40).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const accessToken = tokenService.generateAccessToken(user.id, roles);
+    const refreshTokenData = await tokenService.createSession(user.id);
 
-    // Lưu Refresh Token vào DB
-    await tokenRepo.createRefreshToken(user.id, refreshToken, expiresAt);
-
-    return { accessToken, refreshToken, user: { username: user.username, email: user.email, roles } };
+    return {
+        accessToken,
+        refreshToken: refreshTokenData.refreshToken,
+        user: { username: user.username, email: user.email, roles }
+    };
     
 }
 
@@ -92,38 +92,24 @@ exports.logout = async (refreshToken) => {
 };
 
 exports.refreshSession = async (oldRefreshToken) => {
-    const tokenData = await tokenRepo.findRefreshToken(oldRefreshToken);
+    const tokenData = await tokenService.findRefreshToken(oldRefreshToken);
 
     if (!tokenData) {
         throw new Error('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại.');
     }
 
     // 2. Kiểm tra xem token đã hết hạn chưa
-    const now = new Date();
-    if (new Date(tokenData.expires_at) < now) {
-        await tokenRepo.deleteRefreshToken(oldRefreshToken);
-        throw new Error('Phiên đăng nhập không hợp lệ hoặc hết hạn, vui lòng đăng nhập lại.');
+    if (new Date(tokenData.expires_at) < new Date()) {
+        await tokenService.deleteRefreshToken(oldRefreshToken);
+        throw new Error('Phiên đã hết hạn.');
     }
 
     // 3. Lấy thông tin User & Roles để tạo Access Token mới
     const user = await userRepo.findById(tokenData.user_id);
     const roles = await userRepo.getUserRoles(user.id);
 
-    // 4. Tạo Access Token mới
-    const accessToken = jwt.sign(
-        { id: user.id, email: user.email, roles },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_ACCESS_EXPIRES }
-    );
-
-    // 5. XOAY VÒNG TOKEN (Security Best Practice)
-    // Tạo Refresh Token mới, xóa cái cũ để tránh bị dùng lại (Replay Attack)
-    const newRefreshToken = crypto.randomBytes(40).toString('hex');
-    const newExpiresAt = new Date();
-    newExpiresAt.setDate(newExpiresAt.getDate() + 7);
-
-    await tokenRepo.deleteRefreshToken(oldRefreshToken);
-    await tokenRepo.createRefreshToken(user.id, newRefreshToken, newExpiresAt);
+    const accessToken = tokenService.generateAccessToken(tokenData.user_id, roles);
+    const { refreshToken: newRefreshToken } = await tokenService.rotateSession(tokenData.user_id, oldRefreshToken);
 
     return {
         accessToken,

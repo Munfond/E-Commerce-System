@@ -123,12 +123,23 @@ exports.updatePassword = async (email, hashedPassword) => {
 };
 
 exports.getUserRoles = async (userId) => {
-    const { data, error } = await userRoleTable()
+    const { data: userRoles, error: roleError } = await userRoleTable()
         .select('role_id')
         .eq('user_id', userId);
 
-    if (error) throw error;
-    return data.map(r => r.role_id);
+    if (roleError) throw roleError;
+    if (!userRoles || userRoles.length === 0) return [];
+
+    const roleIds = userRoles.map(r => r.role_id);
+
+    // Bước 2: Lấy tên role từ bảng public.roles dựa trên các ID vừa tìm được
+    const { data: roles, error: rolesNameError } = await roleTable()
+        .select('role_name')
+        .in('id', roleIds);
+
+    if (rolesNameError) throw rolesNameError;
+
+    return roles.map(r => r.role_name); // Trả về ['customer']
 };
 
 exports.upsertPendingSeller = async (userData) => {
@@ -179,4 +190,42 @@ exports.upsertPendingSeller = async (userData) => {
         console.error("Không tìm thấy user hoặc role để gán:", { user, role });
     }
     return user;
+}
+
+exports.createGoogleUser = async (userData) => {
+    const defaultAvatar = userData.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.username)}&background=random&color=fff&rounded=true&format=svg`;
+    
+    const { data: user, error: userError } = await userTable()
+        .insert({
+            email: userData.email,
+            username: userData.username,
+            avatar_url: defaultAvatar,
+            auth_provider: 'google',
+            provider_id: userData.provider_id,
+            status: 'ACTIVE', // Google user mặc định active luôn
+            created_at: new Date(),
+            updated_at: new Date()
+        })
+        .select()
+        .single();
+    
+    if (userError) {
+        console.error("Lỗi tạo User Google:", userError.message);
+        throw userError;
+    }
+    const { data: role } = await roleTable()
+        .select('id')
+        .eq('role_name', 'customer')
+        .single();
+
+    if (role) {
+        await userRoleTable().insert({
+            user_id: user.id,
+            role_id: role.id
+        });
+    } else {
+        console.error("Không tìm thấy role 'customer' để gán cho user Google mới tạo.");
+    }
+
+    return { ...user, roles: ['customer'] };
 }

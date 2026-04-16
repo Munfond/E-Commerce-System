@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const googleController = require('../controllers/googleController');
 const { authenticateToken } = require('../middlewares/authMiddleware');
 
 // Link: /api/v1/auth/accounts
@@ -18,8 +19,11 @@ router.delete('/sessions', authController.logout);
 // Link: /api/v1/auth/sessions/refresh
 router.post('/sessions/refresh', authController.refreshSession);
 
-// Link: /api/v1/auth/sessions/google
-//router.post('/sessions/google', authController.googleLogin);
+// Link: /api/v1/auth/google
+router.get('/google', googleController.getGoogleUrl);
+
+// Link: /api/v1/auth/google/callback
+router.get('/google/callback', googleController.googleCallback);
 
 // Route lấy thông tin cá nhân (Phải đăng nhập mới lấy được)
 router.get('/me', authenticateToken, authController.getMe);
