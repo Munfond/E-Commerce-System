@@ -1,21 +1,15 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // dùng SSL
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 exports.sendOTP = async (toEmail, otp) => {
     try {
-        const mailOptions = {
-            from: `"E-Commerce" System <${process.env.EMAIL_USER}>`,
+        const { data, error } = await resend.emails.send({
+            from: `Shopee Clone <${process.env.EMAIL_SENDER}>`,
             to: toEmail,
+            headers: {
+                'List-Unsubscribe': '<mailto:unsubscribe@antnv3467.id.vn>, <https://antnv3467.id.vn/unsubscribe>'
+            },
             subject: 'Mã xác thực đăng ký tài khoản',
             html: `
                 <div style="background-color: #fef9e7; padding: 40px 20px; font-family: Arial, sans-serif;">
@@ -36,11 +30,13 @@ exports.sendOTP = async (toEmail, otp) => {
                     </div>
                 </div>
             `,
-        };
+        });
 
-        const info = await transporter.sendMail(mailOptions);
-        console.log('Email sent: ' + info.response);
-        return info;
+        if (error) {
+            console.error("Lỗi Resend:", error);
+            throw error;
+        }
+        return data;
     } catch (error) {
         console.error('Lỗi gửi mail: ', error);
         throw new Error('Không thể gửi email xác thực.');
