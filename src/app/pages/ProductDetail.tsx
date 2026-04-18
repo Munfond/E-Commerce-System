@@ -5,12 +5,16 @@ import { Link } from 'react-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import iphoneImage from '../../assets/images/iphone.jpg';
+import macbookImage from '../../assets/images/macbook.jpg';
+import iphone15Image from '../../assets/images/iphone15.jpg';
+import ps5Image from '../../assets/images/ps5.jpg';
 
 const productImages = [
-  'https://images.unsplash.com/photo-1771860886819-1c75b9c0d0cb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
-  'https://images.unsplash.com/photo-1771860886801-52d8400be525?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
-  'https://images.unsplash.com/photo-1761877945239-4d15febdeddb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
-  'https://images.unsplash.com/photo-1760462787828-ad5b29cafb30?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800',
+  iphoneImage,
+  macbookImage,
+  iphone15Image,
+  ps5Image,
 ];
 
 const colors = [
