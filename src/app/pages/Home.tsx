@@ -159,14 +159,14 @@ export default function Home() {
               <div className="col-span-12 lg:col-span-3 grid grid-rows-2 gap-4">
                 <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-sm overflow-hidden">
                   <ImageWithFallback
-                    src="https://images.unsplash.com/photo-1607082350899-7e105aa886ae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                    src={banner2}
                     alt="Promo 1"
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-sm overflow-hidden">
                   <ImageWithFallback
-                    src="https://images.unsplash.com/photo-1607082349566-187342175e2f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400"
+                    src={banner3}
                     alt="Promo 2"
                     className="w-full h-full object-cover"
                   />
