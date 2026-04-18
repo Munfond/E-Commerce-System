@@ -83,26 +83,36 @@ export default function ForgotPassword() {
                 Chúng tôi đã gửi link đặt lại mật khẩu đến <span className="font-medium text-slate-900">{email}</span>
               </p>
               <p className="text-sm text-slate-500 mb-6">
-                Không nhận được email? Kiểm tra thư mục spam hoặc{' '}
+                Không nhận được email? Kiểm tra thư mục spam hoặc thử gửi lại.
+              </p>
+              <div className="flex flex-col gap-3">
                 <button
                   onClick={() => setIsSent(false)}
-                  className="text-blue-600 hover:text-blue-700 font-medium"
+                  className="w-full bg-orange-600 text-white py-3 rounded-lg font-medium hover:bg-orange-700 transition-colors"
                 >
-                  gửi lại
+                  Gửi lại email
                 </button>
-              </p>
+                <Link
+                  to="/login"
+                  className="w-full text-center bg-slate-100 text-slate-900 py-3 rounded-lg font-medium hover:bg-slate-200 transition-colors"
+                >
+                  Quay lại đăng nhập
+                </Link>
+              </div>
             </motion.div>
           )}
 
-          <div className="mt-8">
-            <Link
-              to="/login"
-              className="flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              <ArrowLeft className="size-4" />
-              <span>Quay lại đăng nhập</span>
-            </Link>
-          </div>
+          { !isSent && (
+            <div className="mt-8">
+              <Link
+                to="/login"
+                className="flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                <ArrowLeft className="size-4" />
+                <span>Quay lại đăng nhập</span>
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="mt-8 text-center text-sm text-slate-500">
