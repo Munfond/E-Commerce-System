@@ -24,16 +24,6 @@ exports.findByUsername = async (username) => {
     return data;
 };
 
-exports.findByPhoneNumber = async (phone) => {
-    const { data, error } = await userTable()
-        .select('*')
-        .eq('phone', phone)
-        .single();
-
-    if (error && error.code !== 'PGRST116') throw error;
-    return data;
-};
-
 exports.findById = async (id) => {
     const { data, error } = await userTable()
         .select('*')
@@ -58,7 +48,6 @@ exports.upsertPendingUser = async (userData) => {
                 email: userData.email,
                 password: userData.password, // Mật khẩu này đã được hash từ Service
                 username: userData.username,
-                phone: userData.phone, 
                 avatar_url: defaultAvatar,
                 status: 'PENDING', // Phải viết hoa khớp với ENUM trong SQL
                 updated_at: new Date() 
@@ -123,74 +112,14 @@ exports.updatePassword = async (email, hashedPassword) => {
 };
 
 exports.getUserRoles = async (userId) => {
-    const { data: userRoles, error: roleError } = await userRoleTable()
-        .select('role_id')
+    const { data, error } = await supabase
+        .from('user_permissions') // Truy vấn thẳng vào View ở schema public
+        .select('role_name')
         .eq('user_id', userId);
 
-    if (roleError) throw roleError;
-    if (!userRoles || userRoles.length === 0) return [];
-
-    const roleIds = userRoles.map(r => r.role_id);
-
-    // Bước 2: Lấy tên role từ bảng public.roles dựa trên các ID vừa tìm được
-    const { data: roles, error: rolesNameError } = await roleTable()
-        .select('role_name')
-        .in('id', roleIds);
-
-    if (rolesNameError) throw rolesNameError;
-
-    return roles.map(r => r.role_name); // Trả về ['customer']
+    if (error) throw error;
+    return data.map(item => item.role_name);
 };
-
-exports.upsertPendingSeller = async (userData) => {
-    const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.username)}&background=random&color=fff&rounded=true&format=svg`;
-
-    // Upsert vào bảng Users trong schema private_auth
-    const { data: user, error: userError } = await userTable()
-        .upsert(
-            { 
-                email: userData.email,
-                password: userData.password, // Mật khẩu này đã được hash từ Service
-                username: userData.username,
-                phone: userData.phone, 
-                avatar_url: defaultAvatar,
-                status: 'PENDING', // Phải viết hoa khớp với ENUM trong SQL
-                updated_at: new Date() 
-            }, 
-            { onConflict: 'email' }
-        )
-        .select()
-        .single();
-
-    if (userError) {
-        console.error("Lỗi Upsert User:", userError.message);
-        throw userError;
-    }
-
-    // Role ID mặc định là 'seller'
-    const { data: role, error: roleError } = await roleTable()
-        .select('id')
-        .eq('role_name', 'seller')
-        .single();
-
-    if (roleError) {
-        console.error("Lỗi lấy Role:", roleError.message);
-        throw roleError;
-    }
-
-    // Gán Role cho User (Bảng này cũng nằm trong private_auth)
-    if (role && user) {
-        const { error: linkError } = await userRoleTable()
-            .upsert(
-                { user_id: user.id, role_id: role.id },
-                { onConflict: 'user_id,role_id' }
-            );
-        if (linkError) throw linkError;
-    } else {
-        console.error("Không tìm thấy user hoặc role để gán:", { user, role });
-    }
-    return user;
-}
 
 exports.createGoogleUser = async (userData) => {
     const defaultAvatar = userData.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.username)}&background=random&color=fff&rounded=true&format=svg`;
@@ -228,4 +157,30 @@ exports.createGoogleUser = async (userData) => {
     }
 
     return { ...user, roles: ['customer'] };
+}
+
+exports.activeSeller = async (userId) => {
+    const { data: role, error: roleError } = await roleTable()
+        .select('id')
+        .eq('role_name', 'seller')
+        .single();
+
+    if (roleError) {
+        console.error("Lỗi lấy Role Seller:", roleError.message);
+        throw roleError;
+    }
+    if (!role) throw new Error("Role 'seller' không tồn tại trong hệ thống.");
+
+    const { error: linkError } = await userRoleTable()
+        .upsert(
+            { user_id: userId, role_id: role.id },
+            { onConflict: 'user_id,role_id' }
+        );
+
+    if (linkError) {
+        console.error("Lỗi gán quyền Seller:", linkError.message);
+        throw linkError;
+    }
+
+    return { success: true };
 }

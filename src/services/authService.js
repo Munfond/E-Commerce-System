@@ -7,7 +7,7 @@ const tokenService = require('./tokenService');
 const tokenRepo = require('../repositories/tokenRepository');
 const crypto = require('crypto');
 
-exports.register = async (email, password, username, phone) => {
+exports.register = async (email, password, username) => {
     // Check xem đã active chưa
     const existingUser = await userRepo.findByEmail(email);
     if (existingUser && existingUser.status === 'ACTIVE') {
@@ -22,34 +22,11 @@ exports.register = async (email, password, username, phone) => {
         email,
         password: hashedPassword,
         username,
-        phone
     });
     await otpRepo.createOtp(email, hashedOtp, 'REGISTER');
     await mailService.sendOTP(email, otp);
     return { message: "Mã OTP đã được gửi thành công!" };
 };
-
-exports.registerSeller = async (email, password, username, phone) => {
-    // Check xem đã active chưa
-    const existingUser = await userRepo.findByEmail(email);
-    if (existingUser && existingUser.status === 'ACTIVE') {
-        throw new Error('Email đã được sử dụng.');
-    }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedOtp = await bcrypt.hash(otp, 10);
-
-    // Upsert (Ghi đè nếu đang PENDING)
-    await userRepo.upsertPendingSeller({
-        email,
-        password: hashedPassword,
-        username,
-        phone
-    });
-    await otpRepo.createOtp(email, hashedOtp, 'SELLER_REGISTER');
-    await mailService.sendOTP(email, otp);
-    return { message: "Mã OTP đã được gửi thành công!" };
-}
 
 exports.verifyAccount = async (email, otpCode) => {
     const result = await otpRepo.verifyOtp(email, otpCode, 'REGISTER');

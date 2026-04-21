@@ -13,6 +13,9 @@ app.use('/api/v1/auth', authRoutes);
 app.get('/', (req, res) => {
     res.json({ message: "E-Commerce API is running..." });
 });
+app.get('/api/v1', (req, res) => {
+    res.json({ message: "E-Commerce API V1 is running..." });
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
