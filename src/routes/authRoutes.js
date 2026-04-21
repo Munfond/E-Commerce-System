@@ -32,8 +32,6 @@ router.get('/me', authenticateToken, authController.getMe);
 // Link: /api/v1/auth/password-reset
 router.post('/password-reset/request', passwordController.requestPasswordReset);
 router.post('/password-reset/verify', passwordController.verifyOtp);
-
-// Link: /api/v1/auth/accounts/me/password
-router.post('/accounts/me/password', passwordController.changePassword);
+router.post('/password-reset/reset', passwordController.resetPassword);
 
 module.exports = router;

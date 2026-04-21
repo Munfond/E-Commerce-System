@@ -28,7 +28,7 @@ exports.verifyOtp = async (req, res) => {
     }
 }
 
-exports.changePassword = async (req, res) => {
+exports.resetPassword = async (req, res) => {
     try {
         const { email, newPassword } = req.body;
         if (!email || !newPassword) {
@@ -41,7 +41,7 @@ exports.changePassword = async (req, res) => {
             return res.status(400).json({ error: validationErrors });
         }
 
-        const result = await passwordService.changePassword(email, newPassword);
+        const result = await passwordService.resetPassword(email, newPassword);
         if (result && result.message) {
             return res.status(200).json(result);
         } else {

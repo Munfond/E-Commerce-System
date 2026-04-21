@@ -23,7 +23,7 @@ const passwordService = {
         }
         return { message: "Mã OTP hợp lệ. Bạn có thể đặt lại mật khẩu mới." };
     },
-    async changePassword (email, newPassword) {
+    async resetPassword (email, newPassword) {
         const otpRecord = await otpRepo.checkOtp(email, 'PASSWORD_RESET');
         if (!otpRecord) {
             throw new Error("Bạn chưa xác thực mã OTP hoặc mã đã hết hạn.");
