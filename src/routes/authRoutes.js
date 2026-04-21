@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const googleController = require('../controllers/googleController');
+const passwordController = require('../controllers/passwordController');
 const { authenticateToken } = require('../middlewares/authMiddleware');
 
 // Link: /api/v1/auth/accounts
@@ -27,5 +28,12 @@ router.get('/google/callback', googleController.googleCallback);
 
 // Route lấy thông tin cá nhân (Phải đăng nhập mới lấy được)
 router.get('/me', authenticateToken, authController.getMe);
+
+// Link: /api/v1/auth/password-reset
+router.post('/password-reset/request', passwordController.requestPasswordReset);
+router.post('/password-reset/verify', passwordController.verifyOtp);
+
+// Link: /api/v1/auth/accounts/me/password
+router.post('/accounts/me/password', passwordController.changePassword);
 
 module.exports = router;

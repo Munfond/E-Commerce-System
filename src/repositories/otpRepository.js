@@ -6,7 +6,8 @@ exports.createOtp = async (email, otpCode, type) => {
         .schema('private_auth')
         .from('otp_codes')
         .delete()
-        .or(`expires_at.lt.${new Date().toISOString()},and(email.eq.${email},type.eq.${type},status.eq.PENDING)`);
+        .eq('email', email)
+        .eq('type', type)
     
     const expiresAt = new Date(Date.now() + 5 * 60000); // 5 phút từ hiện tại
 
@@ -42,7 +43,7 @@ exports.verifyOtp = async (email, otpCode, type) => {
 
     if (error || !otpRecord) return { valid: false, message: "Mã không tồn tại hoặc hết hạn" };
 
-    if (otpRecord.attempts >= 5) {
+    if (otpRecord.attempts >= 5 || new Date(otpRecord.expires_at) < new Date()) {
         await supabase.schema('private_auth').from('otp_codes')
             .update({ status: 'EXPIRED' })
             .eq('id', otpRecord.id);
@@ -65,3 +66,35 @@ exports.verifyOtp = async (email, otpCode, type) => {
 
     return { valid: true, data: otpRecord };
 };
+
+exports.checkOtp = async (email, type) => {
+    const { data: otpRecord, error } = await supabase
+        .schema('private_auth')
+        .from('otp_codes')
+        .select('*')
+        .eq('email', email)
+        .eq('type', type)
+        .eq('status', 'VERIFIED')
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (error || !otpRecord) return null;
+    console.log ("OTP Record:", otpRecord, "Status:", otpRecord.status);
+    return otpRecord;
+};
+
+exports.invalidateOtp = async (id, type) => {
+    const { error } = await supabase.schema('private_auth')
+        .from('otp_codes')
+        .update({ status: 'INVALIDATED' })
+        .eq('id', id)
+        .eq('type', type);
+        
+    if (error) {
+        console.error("Lỗi invalidate OTP:", error.message);
+        throw error; 
+    }
+    return true; 
+}

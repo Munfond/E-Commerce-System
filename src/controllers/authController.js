@@ -1,5 +1,5 @@
 const authService = require('../services/authService');
-const validateRegisterInput = require('../utils/validator');
+const validator = require('../utils/validator');
 const userRepo = require('../repositories/userRepository');
 
 //Customer Register
@@ -8,7 +8,7 @@ exports.register = async (req, res) => {
         const { email, password, username} = req.body;
 
         // Kiểm tra dữ liệu đầu vào cơ bản
-        const validationErrors = validateRegisterInput({ email, password, username});
+        const validationErrors = validator.validateRegisterInput({ email, password, username});
         if (validationErrors.length > 0) {
             return res.status(400).json({ error: validationErrors });
         }

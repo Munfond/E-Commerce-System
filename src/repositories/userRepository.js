@@ -103,8 +103,8 @@ exports.updatePassword = async (email, hashedPassword) => {
             password: hashedPassword, 
             updated_at: new Date() 
         })
-        .eq('email', email)
-        .select()
+        .eq('email', email.toLowerCase())
+        .select('id, email')
         .single();
 
     if (error) throw error;
@@ -157,30 +157,4 @@ exports.createGoogleUser = async (userData) => {
     }
 
     return { ...user, roles: ['customer'] };
-}
-
-exports.activeSeller = async (userId) => {
-    const { data: role, error: roleError } = await roleTable()
-        .select('id')
-        .eq('role_name', 'seller')
-        .single();
-
-    if (roleError) {
-        console.error("Lỗi lấy Role Seller:", roleError.message);
-        throw roleError;
-    }
-    if (!role) throw new Error("Role 'seller' không tồn tại trong hệ thống.");
-
-    const { error: linkError } = await userRoleTable()
-        .upsert(
-            { user_id: userId, role_id: role.id },
-            { onConflict: 'user_id,role_id' }
-        );
-
-    if (linkError) {
-        console.error("Lỗi gán quyền Seller:", linkError.message);
-        throw linkError;
-    }
-
-    return { success: true };
 }
