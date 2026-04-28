@@ -8,6 +8,13 @@ import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import NotFound from "./pages/NotFound";
 import SellerDashboard from "./pages/SellerDashboard";
+import SellerOnboardingLayout from "./seller/onboarding/SellerOnboardingLayout";
+import SellerOnboardingIndex from "./pages/SellerOnboardingIndex";
+import SellerOnboardingShop from "./pages/SellerOnboardingShop";
+import SellerOnboardingShipping from "./pages/SellerOnboardingShipping";
+import SellerOnboardingIdentity from "./pages/SellerOnboardingIdentity";
+import SellerOnboardingTax from "./pages/SellerOnboardingTax";
+import SellerOnboardingDone from "./pages/SellerOnboardingDone";
 
 export const router = createBrowserRouter([
   {
@@ -21,6 +28,18 @@ export const router = createBrowserRouter([
       { path: "products/:id", Component: ProductDetail },
       { path: "cart", Component: Cart },
       { path: "seller", Component: SellerDashboard },
+      {
+        path: "seller/register",
+        Component: SellerOnboardingLayout,
+        children: [
+          { index: true, Component: SellerOnboardingIndex },
+          { path: "shop", Component: SellerOnboardingShop },
+          { path: "shipping", Component: SellerOnboardingShipping },
+          { path: "identity", Component: SellerOnboardingIdentity },
+          { path: "tax", Component: SellerOnboardingTax },
+          { path: "done", Component: SellerOnboardingDone },
+        ],
+      },
       { path: "*", Component: NotFound },
     ],
   },

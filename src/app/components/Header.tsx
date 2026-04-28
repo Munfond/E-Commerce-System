@@ -11,7 +11,12 @@ export default function Header({ cartCount = 0 }: { cartCount?: number }) {
             <Link to="/seller" className="hover:text-orange-100 transition-colors">
               Kênh Người Bán
             </Link>
-            <span className="border-l border-orange-400 pl-4">Trở thành Người bán ShopViet</span>
+            <Link
+              to="/seller/register"
+              className="border-l border-orange-400 pl-4 hover:text-orange-100 transition-colors"
+            >
+              Trở thành Người bán ShopViet
+            </Link>
             <span className="border-l border-orange-400 pl-4">Tải ứng dụng</span>
           </div>
           <div className="flex items-center gap-4">

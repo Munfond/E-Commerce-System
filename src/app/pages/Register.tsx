@@ -10,7 +10,6 @@ export default function Register() {
     phone: '',
     password: '',
     confirmPassword: '',
-    role: 'user',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -108,34 +107,8 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">
-                Loại tài khoản
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: 'user' })}
-                  className={`p-4 rounded-lg border-2 transition-all text-left ${
-                    formData.role === 'user'
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="font-semibold text-slate-900 mb-1">Người mua</div>
-                  <div className="text-sm text-slate-600">Mua sắm và đặt hàng</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: 'seller' })}
-                  className={`p-4 rounded-lg border-2 transition-all text-left ${
-                    formData.role === 'seller'
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="font-semibold text-slate-900 mb-1">Người bán</div>
-                  <div className="text-sm text-slate-600">Bán hàng trên nền tảng</div>
-                </button>
+              <div className="text-sm text-slate-600">
+                Bằng cách đăng ký, bạn đồng ý với các điều khoản của ShopViet.
               </div>
             </div>
 
