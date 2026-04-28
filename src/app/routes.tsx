@@ -7,6 +7,7 @@ import ProductList from "./pages/ProductList";
 import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import NotFound from "./pages/NotFound";
+import SellerDashboard from "./pages/SellerDashboard";
 
 export const router = createBrowserRouter([
   {
@@ -19,6 +20,7 @@ export const router = createBrowserRouter([
       { path: "products", Component: ProductList },
       { path: "products/:id", Component: ProductDetail },
       { path: "cart", Component: Cart },
+      { path: "seller", Component: SellerDashboard },
       { path: "*", Component: NotFound },
     ],
   },

@@ -8,7 +8,9 @@ export default function Header({ cartCount = 0 }: { cartCount?: number }) {
       <div className="bg-orange-600/30 text-white text-xs py-2">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span>Kênh Người Bán</span>
+            <Link to="/seller" className="hover:text-orange-100 transition-colors">
+              Kênh Người Bán
+            </Link>
             <span className="border-l border-orange-400 pl-4">Trở thành Người bán ShopViet</span>
             <span className="border-l border-orange-400 pl-4">Tải ứng dụng</span>
           </div>
