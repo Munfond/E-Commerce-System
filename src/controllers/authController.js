@@ -34,39 +34,6 @@ exports.verify = async (req, res) => {
     }
 };
 
-//Seller register và verify sẽ tương tự, chỉ khác ở chỗ type OTP sẽ là 'SELLER_REGISTER' và khi verify xong sẽ gán role 'seller' thay vì 'customer'.
-exports.sellerRegister = async (req, res) => {
-    try {
-        const { email, password, username} = req.body;
-
-        // Kiểm tra dữ liệu đầu vào cơ bản
-        const validationErrors = validateRegisterInput({ email, password, username});
-        if (validationErrors.length > 0) {
-            return res.status(400).json({ error: validationErrors });
-        }
-        
-        const result = await authService.registerSeller(email, password, username);
-        res.status(200).json(result);
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-
-    }
-}
-
-exports.verifySeller = async (req, res) => {
-    try {
-        const { email, otpCode } = req.body;
-        if (!email || !otpCode) {
-            return res.status(400).json({ error: "Thiếu Email hoặc mã OTP!" });
-        }
-
-        const result = await authService.verifySellerAccount(email, otpCode);
-        res.status(200).json(result);
-    } catch (err) {
-        res.status(400).json({ error: err.message });
-    }
-}
-
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -119,14 +86,11 @@ exports.refreshSession = async (req, res) => {
 
 exports.getMe = async (req, res) => {
     try {
-        // req.user được tạo ra từ Middleware bên trên
         const userId = req.user.id;
-        
-        const user = await userRepo.findById(userId);
+        const { data: user, error } = await userRepo.findById(userId);
         if (!user) {
             return res.status(404).json({ error: "Không tìm thấy người dùng." });
         }
-
         const roles = await userRepo.getUserRoles(userId);
 
         res.status(200).json({

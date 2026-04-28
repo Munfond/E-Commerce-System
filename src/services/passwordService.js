@@ -32,6 +32,22 @@ const passwordService = {
         await userRepo.updatePassword(email, hashedPassword);
         await otpRepo.invalidateOtp(otpRecord.id, 'PASSWORD_RESET');
         return { success: true, message: "Mật khẩu của bạn đã được đặt lại thành công." };
+    },
+    async changePassword (userId, currentPassword, newPassword) {
+        const { data: user, error: userError } = await userRepo.findById(userId);
+    
+        if (userError) throw userError;
+        if (!user) return { error: "Người dùng không tồn tại." };
+    
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) return { error: "Mật khẩu hiện tại không đúng." };
+    
+        // Hash mật khẩu mới
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const updateResult = await userRepo.updatePasswordById(userId, hashedPassword);
+        if (updateResult.error) throw updateResult.error;
+    
+        return { success: true, message: "Đổi mật khẩu thành công." };
     }
 }
 

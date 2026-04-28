@@ -1,5 +1,4 @@
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const userRepo = require('../repositories/userRepository');
 const otpRepo = require('../repositories/otpRepository');
 const mailService = require('./mailService');
@@ -82,7 +81,10 @@ exports.refreshSession = async (oldRefreshToken) => {
     }
 
     // 3. Lấy thông tin User & Roles để tạo Access Token mới
-    const user = await userRepo.findById(tokenData.user_id);
+    const { data: user, error } = await userRepo.findById(tokenData.user_id);
+    if (!user) {
+        throw new Error('Người dùng không tồn tại.');
+    }
     const roles = await userRepo.getUserRoles(user.id);
 
     const accessToken = tokenService.generateAccessToken(tokenData.user_id, roles);

@@ -27,11 +27,11 @@ exports.findByUsername = async (username) => {
 exports.findById = async (id) => {
     const { data, error } = await userTable()
         .select('*')
-        .eq('id', id)
+        .eq('id', id) 
         .single();
 
-    if (error) throw error;
-    return data;
+    if (error && error.code !== 'PGRST116') throw error; 
+    return { data, error };
 };
 
 /**
@@ -158,3 +158,32 @@ exports.createGoogleUser = async (userData) => {
 
     return { ...user, roles: ['customer'] };
 }
+
+exports.updateUserProfile = async (userId, profileData) => {
+    const { data, error } = await userTable()
+        .update({ 
+            username: profileData.username, 
+            avatar_url: profileData.avatar_url,
+            updated_at: new Date() 
+        })
+        .eq('id', userId)
+        .select('id, email, username, avatar_url')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+exports.updatePasswordById = async (userId, hashedPassword) => {
+    const { data, error } = await userTable()
+        .update({ 
+            password: hashedPassword, 
+            updated_at: new Date() 
+        })
+        .eq('id', userId)
+        .select('id, email')
+        .single();
+
+    if (error) throw error;
+    return data;
+};
