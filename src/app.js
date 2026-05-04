@@ -12,6 +12,10 @@ app.use(express.json());
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/accounts', userRoutes);
+app.use('/api/v1/sellers', require('./routes/sellerRoutes'));
+app.use('/api/v1/admin', require('./routes/adminRoutes'));
+app.use('/api/v1/shops', require('./routes/shopRoutes'));
+
 app.get('/', (req, res) => {
     res.json({ message: "E-Commerce API is running..." });
 });

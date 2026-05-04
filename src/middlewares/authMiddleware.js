@@ -18,3 +18,19 @@ exports.authenticateToken = (req, res, next) => {
         next();
     });
 };
+
+exports.authorizeRole = (requiredRole) => {
+    return (req, res, next) => {
+        // 1. Kiểm tra đã có user và roles chưa
+        if (!req.user || !req.user.roles) {
+            return res.status(401).json({ error: "Bạn chưa đăng nhập hoặc không có quyền." });
+        }
+
+        // 2. Kiểm tra xem mảng roles của user có chứa quyền yêu cầu không. Ví dụ: requiredRole là 'admin', mảng là ['user', 'admin']
+        if (req.user.roles.includes(requiredRole)) {
+            next(); 
+        } else {
+            return res.status(403).json({ error: "Bạn không có quyền truy cập tài nguyên này." });
+        }
+    };
+};
