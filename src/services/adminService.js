@@ -1,4 +1,4 @@
-const shopRepo = require('../repositories/shopRepo');
+const shopRepo = require('../repositories/shopRepository');
 
 const adminService = {
     // Duyệt shop (Official/Unofficial)

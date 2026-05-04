@@ -19,14 +19,17 @@ exports.authenticateToken = (req, res, next) => {
     });
 };
 
+/**
+ * Middleware để kiểm tra quyền theo role
+ * Sử dụng mảng roles cho linh hoạt cao
+ * Ví dụ: requiredRole là 'admin', mảng roles là ['user', 'admin']
+ */
 exports.authorizeRole = (requiredRole) => {
     return (req, res, next) => {
-        // 1. Kiểm tra đã có user và roles chưa
         if (!req.user || !req.user.roles) {
             return res.status(401).json({ error: "Bạn chưa đăng nhập hoặc không có quyền." });
         }
 
-        // 2. Kiểm tra xem mảng roles của user có chứa quyền yêu cầu không. Ví dụ: requiredRole là 'admin', mảng là ['user', 'admin']
         if (req.user.roles.includes(requiredRole)) {
             next(); 
         } else {
@@ -36,37 +39,21 @@ exports.authorizeRole = (requiredRole) => {
 };
 
 /**
- * Middleware để kiểm tra quyền admin
- * Phải được gọi sau authenticateToken
+ * Shortcut cho admin - tương đương authorizeRole('admin')
  */
-exports.authorizeAdmin = (req, res, next) => {
-    // Kiểm tra user đã được authenticate chưa
-    if (!req.user) {
-        return res.status(401).json({ error: "Bạn cần đăng nhập để thực hiện thao tác này." });
-    }
-
-    // Kiểm tra user có vai trò admin không
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: "Bạn không có quyền truy cập tài nguyên này." });
-    }
-
-    next();
-};
+exports.authorizeAdmin = exports.authorizeRole('admin');
 
 /**
- * Middleware để kiểm tra quyền seller
- * Phải được gọi sau authenticateToken
+ * Shortcut cho seller - kiểm tra seller hoặc admin
  */
 exports.authorizeSeller = (req, res, next) => {
-    // Kiểm tra user đã được authenticate chưa
-    if (!req.user) {
-        return res.status(401).json({ error: "Bạn cần đăng nhập để thực hiện thao tác này." });
+    if (!req.user || !req.user.roles) {
+        return res.status(401).json({ error: "Bạn chưa đăng nhập hoặc không có quyền." });
     }
 
-    // Kiểm tra user có vai trò seller không
-    if (req.user.role !== 'seller' && req.user.role !== 'admin') {
+    if (req.user.roles.includes('seller') || req.user.roles.includes('admin')) {
+        next();
+    } else {
         return res.status(403).json({ error: "Bạn không có quyền truy cập tài nguyên này." });
     }
-
-    next();
 };

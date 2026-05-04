@@ -14,17 +14,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Auth & Account routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/accounts', userRoutes);
+
+// Customer routes
+app.use('/api/v1/customer/cart', cartRoutes);
+app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/categories', categoryRoutes);
+
+// Seller routes
 app.use('/api/v1/sellers', require('./routes/sellerRoutes'));
+
+// Admin routes
 app.use('/api/v1/admin', require('./routes/adminRoutes'));
 app.use('/api/v1/shops', require('./routes/shopRoutes'));
-
-app.use('/api/v1/customer/cart', cartRoutes);
-app.use('/api/v1', categoryRoutes);
-app.use('/api/v1/admin', categoryRoutes);
-app.use('/api/v1', productRoutes);
-app.use('/api/v1', orderRoutes);
 app.get('/', (req, res) => {
     res.json({ message: "E-Commerce API is running..." });
 });
