@@ -1,15 +1,35 @@
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router';
 import { useSellerOnboarding } from '../seller/onboarding/useSellerOnboarding';
 
+function isValidIdNumber(v: string) {
+  const digits = v.replace(/[^\d]/g, '');
+  return digits.length >= 9 && digits.length <= 12;
+}
+
 export default function SellerOnboardingIdentity() {
   const navigate = useNavigate();
   const { data, update } = useSellerOnboarding();
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const canContinue =
-    data.identityFullName.trim().length > 0 &&
-    data.identityIdNumber.trim().length > 0 &&
-    data.identityAddress.trim().length > 0;
+  const canContinue = useMemo(() => {
+    return (
+      data.identityFullName.trim().length > 0 &&
+      isValidIdNumber(data.identityIdNumber) &&
+      data.identityAddress.trim().length > 0
+    );
+  }, [data.identityFullName, data.identityIdNumber, data.identityAddress]);
+
+  const onNext = () => {
+    const nextErrors: Record<string, string> = {};
+    if (!data.identityFullName.trim()) nextErrors.identityFullName = 'Vui lòng nhập họ tên';
+    if (!data.identityIdNumber.trim()) nextErrors.identityIdNumber = 'Vui lòng nhập số CCCD/CMND';
+    else if (!isValidIdNumber(data.identityIdNumber)) nextErrors.identityIdNumber = 'Số CCCD/CMND không hợp lệ';
+    if (!data.identityAddress.trim()) nextErrors.identityAddress = 'Vui lòng nhập địa chỉ thường trú';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) navigate('/seller/register/tax');
+  };
 
   return (
     <div className="space-y-6">
@@ -24,6 +44,7 @@ export default function SellerOnboardingIdentity() {
             placeholder="Nguyễn Văn A"
             className="w-full h-11 px-4 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
+          {errors.identityFullName && <div className="mt-2 text-sm text-rose-600">{errors.identityFullName}</div>}
         </div>
 
         <div>
@@ -37,6 +58,7 @@ export default function SellerOnboardingIdentity() {
             inputMode="numeric"
             className="w-full h-11 px-4 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
+          {errors.identityIdNumber && <div className="mt-2 text-sm text-rose-600">{errors.identityIdNumber}</div>}
         </div>
 
         <div>
@@ -49,6 +71,7 @@ export default function SellerOnboardingIdentity() {
             placeholder="Phường/Xã, Quận/Huyện, Tỉnh/Thành"
             className="w-full h-11 px-4 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
+          {errors.identityAddress && <div className="mt-2 text-sm text-rose-600">{errors.identityAddress}</div>}
         </div>
       </div>
 
@@ -69,7 +92,7 @@ export default function SellerOnboardingIdentity() {
             disabled={!canContinue}
             whileHover={{ scale: canContinue ? 1.01 : 1 }}
             whileTap={{ scale: canContinue ? 0.99 : 1 }}
-            onClick={() => navigate('/seller/register/tax')}
+            onClick={onNext}
             className="h-10 px-5 rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Tiếp theo

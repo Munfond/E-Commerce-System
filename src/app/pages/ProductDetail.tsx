@@ -1,21 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Star, Heart, Share2, Minus, Plus, ShoppingCart, MessageCircle, ChevronRight } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
+import { toast } from 'sonner';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-import iphoneImage from '../../assets/images/iphone.jpg';
-import macbookImage from '../../assets/images/macbook.jpg';
-import iphone15Image from '../../assets/images/iphone15.jpg';
-import ps5Image from '../../assets/images/ps5.jpg';
-
-const productImages = [
-  iphoneImage,
-  macbookImage,
-  iphone15Image,
-  ps5Image,
-];
+import { useCart } from '../contexts/cart';
+import { products, type Product } from '../data/products';
 
 const colors = [
   { name: 'Titan Tự Nhiên', color: '#E8E6E3' },
@@ -31,17 +23,50 @@ export default function ProductDetail() {
   const [selectedColor, setSelectedColor] = useState(0);
   const [selectedStorage, setSelectedStorage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const { addToCart, buyNow } = useCart();
+  const navigate = useNavigate();
+  const params = useParams();
+  const productId = Number(params.id);
+  const product = products.find((item) => item.id === productId);
 
-  const price = 34990000;
-  const oldPrice = 36990000;
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center text-center p-6">
+          <div>
+            <h1 className="text-2xl font-semibold">Sản phẩm không tồn tại</h1>
+            <p className="text-slate-600 mt-2">Vui lòng quay lại trang sản phẩm để chọn sản phẩm khác.</p>
+            <Link to="/products" className="inline-flex mt-4 rounded-lg bg-orange-600 px-5 py-3 text-white hover:bg-orange-700">
+              Quay về cửa hàng
+            </Link>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  const productImages = [product.image, product.image, product.image];
 
   const formatPrice = (price: number) => {
     return '₫' + price.toLocaleString('vi-VN');
   };
 
+  const handleAddToCart = () => {
+    addToCart(product, quantity);
+    toast.success('Đã thêm vào giỏ hàng');
+  };
+
+  const handleBuyNow = () => {
+    buyNow(product, quantity);
+    toast.success('Mua ngay thành công');
+    navigate('/cart');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header cartCount={3} />
+      <Header />
 
       <main className="flex-1">
         <div className="bg-white py-4 mb-4">
@@ -127,11 +152,15 @@ export default function ProductDetail() {
 
                 <div className="bg-slate-50 p-4 mb-6">
                   <div className="flex items-baseline gap-3">
-                    <span className="text-3xl text-orange-600 font-medium">{formatPrice(price)}</span>
-                    <span className="text-slate-400 line-through text-lg">{formatPrice(oldPrice)}</span>
-                    <span className="bg-orange-600 text-white text-xs px-2 py-1 rounded-sm">
-                      -{Math.round(((oldPrice - price) / oldPrice) * 100)}% GIẢM
-                    </span>
+                    <span className="text-3xl text-orange-600 font-medium">{formatPrice(product.price)}</span>
+                    {product.oldPrice && (
+                      <span className="text-slate-400 line-through text-lg">{formatPrice(product.oldPrice)}</span>
+                    )}
+                    {product.oldPrice && (
+                      <span className="bg-orange-600 text-white text-xs px-2 py-1 rounded-sm">
+                        -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}% GIẢM
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -201,11 +230,19 @@ export default function ProductDetail() {
                 </div>
 
                 <div className="flex gap-4">
-                  <button className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-orange-600 text-orange-600 hover:bg-orange-50 transition-colors rounded-sm">
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    className="flex items-center justify-center gap-2 px-6 py-3 border-2 border-orange-600 text-orange-600 hover:bg-orange-50 transition-colors rounded-sm"
+                  >
                     <ShoppingCart className="size-5" />
                     <span className="font-medium">Thêm vào giỏ hàng</span>
                   </button>
-                  <button className="flex-1 bg-orange-600 text-white py-3 hover:bg-orange-700 transition-colors rounded-sm font-medium">
+                  <button
+                    type="button"
+                    onClick={handleBuyNow}
+                    className="flex-1 bg-orange-600 text-white py-3 hover:bg-orange-700 transition-colors rounded-sm font-medium"
+                  >
                     Mua ngay
                   </button>
                 </div>

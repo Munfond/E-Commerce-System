@@ -1,8 +1,11 @@
 import { ShoppingBag, ShoppingCart, Search, Bell } from 'lucide-react';
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
+import { useCart } from '../contexts/cart';
 
-export default function Header({ cartCount = 0 }: { cartCount?: number }) {
+export default function Header({ cartCount }: { cartCount?: number }) {
+  const cart = cartCount ?? useCart()?.cartCount ?? 0;
+
   return (
     <header className="bg-gradient-to-r from-orange-600 to-orange-500 sticky top-0 z-50 shadow-md">
       <div className="bg-orange-600/30 text-white text-xs py-2">

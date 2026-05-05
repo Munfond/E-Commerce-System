@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, ShoppingBag, Eye, EyeOff, User, Phone } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -14,13 +14,14 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
     setIsLoading(false);
-    window.location.href = '/login';
+    navigate('/login', { replace: true });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

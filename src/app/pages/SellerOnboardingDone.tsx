@@ -1,10 +1,58 @@
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { CheckCircle2 } from 'lucide-react';
 import { useSellerOnboarding } from '../seller/onboarding/useSellerOnboarding';
+import { upsertSellerProfile } from '../api/seller/sellerApi';
+import { ApiError } from '../api/errors';
+import type { SellerProfileUpsertDto } from '../types/dto/seller';
 
 export default function SellerOnboardingDone() {
   const { data, reset } = useSellerOnboarding();
+  const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const payload = useMemo<SellerProfileUpsertDto>(
+    () => ({
+      shopName: data.shopName,
+      pickupAddress: data.pickupAddress,
+      email: data.email,
+      phone: data.phone,
+      shippingProvider: data.shippingProvider,
+      identityFullName: data.identityFullName,
+      identityIdNumber: data.identityIdNumber,
+      identityAddress: data.identityAddress,
+      taxCode: data.taxCode,
+      taxCompanyName: data.taxCompanyName || undefined,
+    }),
+    [data]
+  );
+
+  const onSubmit = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    setFieldErrors({});
+    try {
+      await upsertSellerProfile(payload);
+      reset();
+      navigate('/seller/products', { replace: true });
+    } catch (e) {
+      if (e instanceof ApiError) {
+        setError(e.message || 'Gửi hồ sơ thất bại.');
+        const details = e.details as { details?: { fields?: Record<string, string> } } | undefined;
+        const fields = (details && typeof details === 'object' ? (details as any).details?.fields : undefined) as
+          | Record<string, string>
+          | undefined;
+        if (fields) setFieldErrors(fields);
+        return;
+      }
+      setError('Gửi hồ sơ thất bại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -15,10 +63,16 @@ export default function SellerOnboardingDone() {
         <div>
           <h2 className="text-xl font-bold text-slate-900">Hoàn tất đăng ký</h2>
           <p className="text-slate-600 mt-1">
-            Thông tin đã được lưu tạm. Bạn có thể nối API để submit hồ sơ ở bước này.
+            Kiểm tra lại thông tin, sau đó gửi hồ sơ để hoàn tất.
           </p>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
 
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
         <div className="text-sm font-semibold text-slate-900">Tóm tắt</div>
@@ -40,6 +94,11 @@ export default function SellerOnboardingDone() {
             <span className="font-semibold text-slate-900">{data.taxCode || '-'}</span>
           </div>
         </div>
+        {Object.keys(fieldErrors).length > 0 && (
+          <div className="mt-4 text-sm text-rose-700">
+            Vui lòng kiểm tra lại: {Object.keys(fieldErrors).join(', ')}
+          </div>
+        )}
       </div>
 
       <div className="border-t border-slate-100 pt-5 flex items-center justify-between gap-3">
@@ -50,14 +109,26 @@ export default function SellerOnboardingDone() {
         >
           Tạo lại hồ sơ
         </button>
-        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-          <Link
-            to="/seller"
-            className="inline-flex items-center justify-center h-10 px-5 rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 transition-colors"
+        <div className="flex items-center gap-3">
+          <motion.button
+            type="button"
+            disabled={isSubmitting}
+            whileHover={{ scale: isSubmitting ? 1 : 1.01 }}
+            whileTap={{ scale: isSubmitting ? 1 : 0.99 }}
+            onClick={onSubmit}
+            className="h-10 px-5 rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Vào dashboard
-          </Link>
-        </motion.div>
+            {isSubmitting ? 'Đang gửi...' : 'Gửi hồ sơ'}
+          </motion.button>
+          <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+            <Link
+              to="/seller/products"
+              className="inline-flex items-center justify-center h-10 px-5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              Về Seller Center
+            </Link>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

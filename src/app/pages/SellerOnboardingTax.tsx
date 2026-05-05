@@ -1,12 +1,26 @@
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router';
 import { useSellerOnboarding } from '../seller/onboarding/useSellerOnboarding';
 
+function isValidTaxCode(v: string) {
+  const digits = v.replace(/[^\d]/g, '');
+  return digits.length >= 10 && digits.length <= 14;
+}
+
 export default function SellerOnboardingTax() {
   const navigate = useNavigate();
   const { data, update } = useSellerOnboarding();
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const canContinue = data.taxCode.trim().length > 0;
+  const canContinue = useMemo(() => isValidTaxCode(data.taxCode), [data.taxCode]);
+  const onNext = () => {
+    const nextErrors: Record<string, string> = {};
+    if (!data.taxCode.trim()) nextErrors.taxCode = 'Vui lòng nhập mã số thuế';
+    else if (!isValidTaxCode(data.taxCode)) nextErrors.taxCode = 'Mã số thuế không hợp lệ';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) navigate('/seller/register/done');
+  };
 
   return (
     <div className="space-y-6">
@@ -22,6 +36,7 @@ export default function SellerOnboardingTax() {
             inputMode="numeric"
             className="w-full h-11 px-4 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
+          {errors.taxCode && <div className="mt-2 text-sm text-rose-600">{errors.taxCode}</div>}
         </div>
 
         <div>
@@ -52,7 +67,7 @@ export default function SellerOnboardingTax() {
             disabled={!canContinue}
             whileHover={{ scale: canContinue ? 1.01 : 1 }}
             whileTap={{ scale: canContinue ? 0.99 : 1 }}
-            onClick={() => navigate('/seller/register/done')}
+            onClick={onNext}
             className="h-10 px-5 rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Tiếp theo

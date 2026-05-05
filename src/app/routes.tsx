@@ -8,6 +8,13 @@ import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import NotFound from "./pages/NotFound";
 import SellerDashboard from "./pages/SellerDashboard";
+import SellerCenterLayout from "./seller/center/SellerCenterLayout";
+import SellerIndex from "./pages/SellerIndex";
+import SellerOrders from "./pages/SellerOrders";
+import SellerInventory from "./pages/SellerInventory";
+import SellerProfile from "./pages/SellerProfile";
+import AddProduct from "./pages/AddProduct";
+import SellerGuard from "./auth/SellerGuard";
 import SellerOnboardingLayout from "./seller/onboarding/SellerOnboardingLayout";
 import SellerOnboardingIndex from "./pages/SellerOnboardingIndex";
 import SellerOnboardingShop from "./pages/SellerOnboardingShop";
@@ -27,17 +34,34 @@ export const router = createBrowserRouter([
       { path: "products", Component: ProductList },
       { path: "products/:id", Component: ProductDetail },
       { path: "cart", Component: Cart },
-      { path: "seller", Component: SellerDashboard },
       {
-        path: "seller/register",
-        Component: SellerOnboardingLayout,
+        path: "seller",
+        Component: SellerGuard,
         children: [
-          { index: true, Component: SellerOnboardingIndex },
-          { path: "shop", Component: SellerOnboardingShop },
-          { path: "shipping", Component: SellerOnboardingShipping },
-          { path: "identity", Component: SellerOnboardingIdentity },
-          { path: "tax", Component: SellerOnboardingTax },
-          { path: "done", Component: SellerOnboardingDone },
+          {
+            path: "",
+            Component: SellerCenterLayout,
+            children: [
+              { index: true, Component: SellerIndex },
+              { path: "products", Component: SellerDashboard },
+              { path: "products/add", Component: AddProduct },
+              { path: "profile", Component: SellerProfile },
+              { path: "orders", Component: SellerOrders },
+              { path: "inventory", Component: SellerInventory },
+              {
+                path: "register",
+                Component: SellerOnboardingLayout,
+                children: [
+                  { index: true, Component: SellerOnboardingIndex },
+                  { path: "shop", Component: SellerOnboardingShop },
+                  { path: "shipping", Component: SellerOnboardingShipping },
+                  { path: "identity", Component: SellerOnboardingIdentity },
+                  { path: "tax", Component: SellerOnboardingTax },
+                  { path: "done", Component: SellerOnboardingDone },
+                ],
+              },
+            ],
+          }
         ],
       },
       { path: "*", Component: NotFound },

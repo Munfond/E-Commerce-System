@@ -1,62 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Trash2, Plus, Minus, Ticket, ShoppingBag } from 'lucide-react';
 import { Link } from 'react-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-
-const initialCartItems = [
-  {
-    id: 1,
-    name: 'iPhone 16 Pro Max Titan Tự Nhiên 256GB - Chính hãng VN/A',
-    price: 34990000,
-    quantity: 1,
-    image: 'https://images.unsplash.com/photo-1771860886819-1c75b9c0d0cb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=300',
-    variant: 'Titan Tự Nhiên, 256GB',
-    seller: 'Apple Store Chính Hãng',
-  },
-  {
-    id: 2,
-    name: 'AirPods Pro Gen 2 USB-C Chính Hãng Apple',
-    price: 6490000,
-    quantity: 2,
-    image: 'https://images.unsplash.com/photo-1761641466573-f240b6e446de?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=300',
-    variant: 'Trắng',
-    seller: 'Apple Store Chính Hãng',
-  },
-  {
-    id: 3,
-    name: 'Apple Watch Ultra 2 Titan 49mm GPS + Cellular',
-    price: 21990000,
-    quantity: 1,
-    image: 'https://images.unsplash.com/photo-1760520338238-4137dd2dc28f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=300',
-    variant: 'Titan, 49mm',
-    seller: 'Apple Store Chính Hãng',
-  },
-];
+import { useCart } from '../contexts/cart';
 
 export default function Cart() {
-  const [cartItems, setCartItems] = useState(initialCartItems);
+  const { items: cartItems, updateQuantity, removeFromCart } = useCart();
   const [promoCode, setPromoCode] = useState('');
   const [selectAll, setSelectAll] = useState(true);
-  const [selectedItems, setSelectedItems] = useState<number[]>(cartItems.map(item => item.id));
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
 
-  const updateQuantity = (id: number, newQuantity: number) => {
-    if (newQuantity < 1) return;
-    setCartItems(cartItems.map(item =>
-      item.id === id ? { ...item, quantity: newQuantity } : item
-    ));
-  };
-
-  const removeItem = (id: number) => {
-    setCartItems(cartItems.filter(item => item.id !== id));
-    setSelectedItems(selectedItems.filter(itemId => itemId !== id));
-  };
+  useEffect(() => {
+    setSelectedItems(cartItems.map((item) => item.product.id));
+    setSelectAll(cartItems.length > 0);
+  }, [cartItems]);
 
   const toggleSelectItem = (id: number) => {
     if (selectedItems.includes(id)) {
-      setSelectedItems(selectedItems.filter(itemId => itemId !== id));
+      setSelectedItems(selectedItems.filter((itemId) => itemId !== id));
       setSelectAll(false);
     } else {
       const newSelected = [...selectedItems, id];
@@ -71,14 +35,14 @@ export default function Cart() {
     if (selectAll) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(cartItems.map(item => item.id));
+      setSelectedItems(cartItems.map((item) => item.product.id));
     }
     setSelectAll(!selectAll);
   };
 
   const selectedItemsTotal = cartItems
-    .filter(item => selectedItems.includes(item.id))
-    .reduce((sum, item) => sum + item.price * item.quantity, 0);
+    .filter((item) => selectedItems.includes(item.product.id))
+    .reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
   const formatPrice = (price: number) => {
     return '₫' + price.toLocaleString('vi-VN');
@@ -87,7 +51,7 @@ export default function Cart() {
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
-        <Header cartCount={0} />
+        <Header />
         <main className="flex-1 flex items-center justify-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -117,7 +81,7 @@ export default function Cart() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header cartCount={cartItems.length} />
+      <Header />
 
       <main className="flex-1 max-w-7xl mx-auto px-4 py-6 w-full">
         <div className="grid lg:grid-cols-12 gap-4">
@@ -139,7 +103,7 @@ export default function Cart() {
 
               {cartItems.map((item, index) => (
                 <motion.div
-                  key={item.id}
+                  key={item.product.id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
@@ -147,33 +111,33 @@ export default function Cart() {
                 >
                   <input
                     type="checkbox"
-                    checked={selectedItems.includes(item.id)}
-                    onChange={() => toggleSelectItem(item.id)}
+                    checked={selectedItems.includes(item.product.id)}
+                    onChange={() => toggleSelectItem(item.product.id)}
                     className="size-5 accent-orange-600 cursor-pointer flex-shrink-0"
                   />
 
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="size-20 bg-slate-100 flex-shrink-0">
                       <ImageWithFallback
-                        src={item.image}
-                        alt={item.name}
+                        src={item.product.image}
+                        alt={item.product.name}
                         className="w-full h-full object-cover"
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm text-slate-900 line-clamp-2 mb-1">{item.name}</h3>
-                      <p className="text-xs text-slate-500">{item.variant}</p>
+                      <h3 className="text-sm text-slate-900 line-clamp-2 mb-1">{item.product.name}</h3>
+                      <p className="text-xs text-slate-500">{item.product.description}</p>
                     </div>
                   </div>
 
                   <div className="w-32 text-center hidden md:block">
-                    <span className="text-slate-900">{formatPrice(item.price)}</span>
+                    <span className="text-slate-900">{formatPrice(item.product.price)}</span>
                   </div>
 
                   <div className="w-32 flex justify-center">
                     <div className="flex items-center border border-slate-300">
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
                         className="size-8 hover:bg-slate-100 flex items-center justify-center"
                       >
                         <Minus className="size-4" />
@@ -185,7 +149,7 @@ export default function Cart() {
                         className="w-12 h-8 text-center border-x border-slate-300 outline-none"
                       />
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
                         className="size-8 hover:bg-slate-100 flex items-center justify-center"
                       >
                         <Plus className="size-4" />
@@ -194,12 +158,12 @@ export default function Cart() {
                   </div>
 
                   <div className="w-32 text-center hidden md:block">
-                    <span className="text-orange-600 font-medium">{formatPrice(item.price * item.quantity)}</span>
+                    <span className="text-orange-600 font-medium">{formatPrice(item.product.price * item.quantity)}</span>
                   </div>
 
                   <div className="w-16 text-center hidden md:block">
                     <button
-                      onClick={() => removeItem(item.id)}
+                      onClick={() => removeFromCart(item.product.id)}
                       className="text-slate-400 hover:text-red-500 transition-colors"
                     >
                       <Trash2 className="size-5" />
@@ -207,7 +171,7 @@ export default function Cart() {
                   </div>
 
                   <button
-                    onClick={() => removeItem(item.id)}
+                    onClick={() => removeFromCart(item.product.id)}
                     className="md:hidden text-slate-400 hover:text-red-500 transition-colors flex-shrink-0"
                   >
                     <Trash2 className="size-5" />

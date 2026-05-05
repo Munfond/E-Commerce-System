@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Mail, ShoppingBag, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router';
 
@@ -11,7 +11,9 @@ export default function ForgotPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
     await new Promise(resolve => setTimeout(resolve, 1500));
+
     setIsLoading(false);
     setIsSent(true);
   };
@@ -28,24 +30,37 @@ export default function ForgotPassword() {
           <div className="size-12 bg-blue-600 rounded-xl flex items-center justify-center">
             <ShoppingBag className="size-7 text-white" strokeWidth={2} />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">ShopViet</h1>
+
+          <h1 className="text-3xl font-bold text-slate-900">
+            ShopViet
+          </h1>
         </Link>
 
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {!isSent ? (
             <>
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">Quên mật khẩu</h2>
-                <p className="text-slate-600">Nhập email của bạn để nhận link đặt lại mật khẩu</p>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                  Quên mật khẩu
+                </h2>
+
+                <p className="text-slate-600">
+                  Nhập email của bạn để nhận link đặt lại mật khẩu
+                </p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-medium text-slate-700 mb-2"
+                  >
                     Email
                   </label>
+
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-slate-400" />
+
                     <input
                       id="email"
                       type="email"
@@ -78,13 +93,22 @@ export default function ForgotPassword() {
               <div className="size-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail className="size-8 text-green-600" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Kiểm tra email của bạn</h2>
+
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                Kiểm tra email của bạn
+              </h2>
+
               <p className="text-slate-600 mb-6">
-                Chúng tôi đã gửi link đặt lại mật khẩu đến <span className="font-medium text-slate-900">{email}</span>
+                Chúng tôi đã gửi link đặt lại mật khẩu đến{' '}
+                <span className="font-medium text-slate-900">
+                  {email}
+                </span>
               </p>
+
               <p className="text-sm text-slate-500 mb-6">
                 Không nhận được email? Kiểm tra thư mục spam hoặc thử gửi lại.
               </p>
+
               <div className="flex flex-col gap-3">
                 <button
                   onClick={() => setIsSent(false)}
@@ -92,6 +116,7 @@ export default function ForgotPassword() {
                 >
                   Gửi lại email
                 </button>
+
                 <Link
                   to="/login"
                   className="w-full text-center bg-slate-100 text-slate-900 py-3 rounded-lg font-medium hover:bg-slate-200 transition-colors"
@@ -102,7 +127,7 @@ export default function ForgotPassword() {
             </motion.div>
           )}
 
-          { !isSent && (
+          {!isSent && (
             <div className="mt-8">
               <Link
                 to="/login"
@@ -116,7 +141,9 @@ export default function ForgotPassword() {
         </div>
 
         <div className="mt-8 text-center text-sm text-slate-500">
-          <p>© 2026 ShopViet. Bảo mật thông tin của bạn là ưu tiên hàng đầu.</p>
+          <p>
+            © 2026 ShopViet. Bảo mật thông tin của bạn là ưu tiên hàng đầu.
+          </p>
         </div>
       </motion.div>
     </div>

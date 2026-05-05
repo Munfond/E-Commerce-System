@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router';
 import { useSellerOnboarding } from '../seller/onboarding/useSellerOnboarding';
@@ -12,8 +13,17 @@ const providers = [
 export default function SellerOnboardingShipping() {
   const navigate = useNavigate();
   const { data, update } = useSellerOnboarding();
+  const [error, setError] = useState<string | null>(null);
 
   const canContinue = data.shippingProvider.trim().length > 0;
+  const onNext = () => {
+    if (!data.shippingProvider.trim()) {
+      setError('Vui lòng chọn đơn vị vận chuyển.');
+      return;
+    }
+    setError(null);
+    navigate('/seller/register/identity');
+  };
 
   return (
     <div className="space-y-6">
@@ -28,7 +38,10 @@ export default function SellerOnboardingShipping() {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => update({ shippingProvider: p.id })}
+                onClick={() => {
+                  setError(null);
+                  update({ shippingProvider: p.id });
+                }}
                 className={[
                   'p-4 rounded-xl border text-left transition-colors',
                   active ? 'border-orange-600 bg-orange-50' : 'border-slate-200 hover:border-slate-300 bg-white',
@@ -40,6 +53,7 @@ export default function SellerOnboardingShipping() {
             );
           })}
         </div>
+        {error && <div className="mt-3 text-sm text-rose-600">{error}</div>}
       </div>
 
       <div className="border-t border-slate-100 pt-5 flex items-center justify-between gap-3">
@@ -59,7 +73,7 @@ export default function SellerOnboardingShipping() {
             disabled={!canContinue}
             whileHover={{ scale: canContinue ? 1.01 : 1 }}
             whileTap={{ scale: canContinue ? 0.99 : 1 }}
-            onClick={() => navigate('/seller/register/identity')}
+            onClick={onNext}
             className="h-10 px-5 rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Tiếp theo

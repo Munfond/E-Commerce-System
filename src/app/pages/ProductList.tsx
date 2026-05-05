@@ -1,143 +1,52 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { ChevronDown, SlidersHorizontal } from 'lucide-react';
-import { Link } from 'react-router';
+import { ChevronDown, SlidersHorizontal, Star, ShoppingCart } from 'lucide-react';
+import { Link, useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-import iphoneImage from '../../assets/images/iphone.jpg';
-import macbookProImage from '../../assets/images/macbook-pro.jpg';
-import iphone15Image from '../../assets/images/iphone15.jpg';
-import ps5Image from '../../assets/images/ps5.jpg';
-import ipadImage from '../../assets/images/ipad.jpg';
-import watchImage from '../../assets/images/watch.jpg';
-import airpodsMaxImage from '../../assets/images/airpods-max.jpg';
-import iphone14Image from '../../assets/images/iphone14.jpg';
-import macbookAirImage from '../../assets/images/macbook-air.jpg';
-import ipadAirImage from '../../assets/images/ipad-air.jpg';
-import airpodsProImage from '../../assets/images/airpods-pro.jpg';
-import iphone15PlusImage from '../../assets/images/iphone15-plus.jpg';
-
-const products = [
-  {
-    id: 1,
-    name: 'iPhone 16 Pro Max Titan Tự Nhiên 256GB',
-    price: 34990000,
-    oldPrice: 36990000,
-    image: iphoneImage,
-    rating: 4.8,
-    sold: 1200,
-  },
-  {
-    id: 2,
-    name: 'MacBook Pro M3 14 inch 2024 512GB',
-    price: 48990000,
-    image: macbookProImage,
-    rating: 4.9,
-    sold: 890,
-  },
-  {
-    id: 3,
-    name: 'iPhone 15 Pro 128GB VN/A Chính Hãng',
-    price: 24990000,
-    oldPrice: 28990000,
-    image: iphone15Image,
-    rating: 4.7,
-    sold: 2300,
-  },
-  {
-    id: 4,
-    name: 'Gaming Setup Pro Console PlayStation 5',
-    price: 15990000,
-    image: ps5Image,
-    rating: 4.6,
-    sold: 450,
-  },
-  {
-    id: 5,
-    name: 'iPad Pro M2 11 inch WiFi 128GB 2024',
-    price: 32990000,
-    oldPrice: 35990000,
-    image: ipadImage,
-    rating: 4.8,
-    sold: 670,
-  },
-  {
-    id: 6,
-    name: 'Apple Watch Series 9 GPS 41mm Aluminum',
-    price: 12990000,
-    image: watchImage,
-    rating: 4.7,
-    sold: 980,
-  },
-  {
-    id: 7,
-    name: 'AirPods Max Over-Ear Headphones',
-    price: 13490000,
-    oldPrice: 14990000,
-    image: airpodsMaxImage,
-    rating: 4.9,
-    sold: 1500,
-  },
-  {
-    id: 8,
-    name: 'iPhone 14 Pro 128GB Chính Hãng VN/A',
-    price: 19990000,
-    oldPrice: 24990000,
-    image: iphone14Image,
-    rating: 4.6,
-    sold: 3400,
-  },
-  {
-    id: 9,
-    name: 'MacBook Air M3 13 inch 256GB 2024',
-    price: 28990000,
-    oldPrice: 31990000,
-    image: macbookAirImage,
-    rating: 4.8,
-    sold: 1100,
-  },
-  {
-    id: 10,
-    name: 'iPad Air M2 11 inch WiFi 256GB Chính Hãng',
-    price: 18990000,
-    image: ipadAirImage,
-    rating: 4.7,
-    sold: 820,
-  },
-  {
-    id: 11,
-    name: 'AirPods Pro Gen 2 USB-C Chính Hãng Apple',
-    price: 6490000,
-    oldPrice: 6990000,
-    image: airpodsProImage,
-    rating: 4.9,
-    sold: 2200,
-  },
-  {
-    id: 12,
-    name: 'iPhone 15 Plus 128GB Chính Hãng VN/A',
-    price: 22990000,
-    oldPrice: 25990000,
-    image: iphone15PlusImage,
-    rating: 4.7,
-    sold: 1600,
-  },
-];
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../components/ui/dialog';
+import { useCart } from '../contexts/cart';
+import { products, type Product } from '../data/products';
 
 const categories = ['Điện thoại', 'Laptop', 'Tablet', 'Đồng hồ', 'Tai nghe', 'Phụ kiện'];
 
 export default function ProductList() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('popular');
+  const [open, setOpen] = useState(false);
+  const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const { addToCart, buyNow } = useCart();
+  const navigate = useNavigate();
 
   const formatPrice = (price: number) => {
     return '₫' + price.toLocaleString('vi-VN');
   };
 
+  const filteredProducts = products.filter((product) =>
+    selectedCategory ? product.category === selectedCategory : true
+  );
+
+  const handleOpenProduct = (product: Product) => {
+    setActiveProduct(product);
+    setOpen(true);
+  };
+
+  const handleAddToCart = (product: Product) => {
+    addToCart(product, 1);
+    toast.success('Đã thêm vào giỏ hàng');
+  };
+
+  const handleBuyNow = (product: Product) => {
+    buyNow(product, 1);
+    toast.success('Mua ngay thành công');
+    navigate('/cart');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header cartCount={3} />
+      <Header />
 
       <main className="flex-1">
         <div className="bg-white border-b border-slate-200 sticky top-32 z-40">
@@ -213,13 +122,18 @@ export default function ProductList() {
 
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-            {products.map((product, index) => (
-              <Link to={`/products/${product.id}`} key={product.id}>
+            {filteredProducts.map((product, index) => (
+              <button
+                type="button"
+                onClick={() => handleOpenProduct(product)}
+                key={product.id}
+                className="text-left"
+              >
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.03 }}
-                  className="bg-white border border-slate-100 hover:border-slate-300 hover:shadow-lg transition-all"
+                  className="bg-white border border-slate-100 hover:border-slate-300 hover:shadow-lg transition-all w-full"
                 >
                   <div className="relative aspect-square bg-slate-50 overflow-hidden">
                     <ImageWithFallback
@@ -243,14 +157,14 @@ export default function ProductList() {
                     )}
                     <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
                       <div className="flex items-center gap-1">
-                        <span className="text-yellow-400">★</span>
+                        <Star className="size-3 text-yellow-400" />
                         <span>{product.rating}</span>
                       </div>
-                      <span>Đã bán {product.sold > 1000 ? `${(product.sold/1000).toFixed(1)}k` : product.sold}</span>
+                      <span>Đã bán {product.sold > 1000 ? `${(product.sold / 1000).toFixed(1)}k` : product.sold}</span>
                     </div>
                   </div>
                 </motion.div>
-              </Link>
+              </button>
             ))}
           </div>
 
@@ -269,6 +183,73 @@ export default function ProductList() {
       </main>
 
       <Footer />
+
+      <Dialog open={open} onOpenChange={(value) => setOpen(value)}>
+        <DialogContent className="max-w-3xl p-0">
+          {activeProduct && (
+            <div className="grid lg:grid-cols-2 gap-0 lg:gap-6">
+              <div className="bg-slate-50 p-4 lg:p-6">
+                <div className="aspect-square bg-white rounded-xl overflow-hidden mb-4">
+                  <ImageWithFallback
+                    src={activeProduct.image}
+                    alt={activeProduct.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex items-center gap-4 justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">{activeProduct.name}</h2>
+                    <p className="text-sm text-slate-500 mt-2">{activeProduct.category}</p>
+                  </div>
+                  <DialogClose className="text-slate-500 hover:text-slate-900">✕</DialogClose>
+                </div>
+              </div>
+              <div className="bg-white p-6 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-3xl font-semibold text-orange-600">{formatPrice(activeProduct.price)}</span>
+                    {activeProduct.oldPrice && (
+                      <span className="text-sm text-slate-400 line-through">{formatPrice(activeProduct.oldPrice)}</span>
+                    )}
+                  </div>
+                  <div className="space-y-3 text-sm text-slate-600 mb-6">
+                    <p>{activeProduct.description}</p>
+                    <p>
+                      <span className="font-medium text-slate-900">Đã bán:</span> {activeProduct.sold}
+                    </p>
+                    <p>
+                      <span className="font-medium text-slate-900">Đánh giá:</span> {activeProduct.rating} ★
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(activeProduct)}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-orange-600 px-4 py-3 text-orange-600 hover:bg-orange-50 transition-colors"
+                  >
+                    <ShoppingCart className="size-4" />
+                    Thêm vào giỏ hàng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBuyNow(activeProduct)}
+                    className="w-full rounded-lg bg-orange-600 px-4 py-3 text-white hover:bg-orange-700 transition-colors"
+                  >
+                    Mua ngay
+                  </button>
+                  <Link
+                    to={`/products/${activeProduct.id}`}
+                    className="inline-flex w-full items-center justify-center rounded-lg border border-slate-300 px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
+                  >
+                    Xem trang sản phẩm
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

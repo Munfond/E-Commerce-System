@@ -1,20 +1,33 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, ShoppingBag, Eye, EyeOff } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const auth = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    window.location.href = '/';
+    setError(null);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      await auth.login({ email, password, roleHint: 'seller' });
+      const next = new URLSearchParams(location.search).get('next') || '/';
+      navigate(next, { replace: true });
+    } catch {
+      setError('Đăng nhập thất bại, vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -39,6 +52,11 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {error}
+              </div>
+            )}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
                 Email
