@@ -63,6 +63,13 @@ const shopRepo = {
         const { data, error } = await query;
         if (error) throw error;
         return data;
+    },
+    async assignUserToSeller (sellerId) {
+        const { data, error } = await supabase
+            .from('user_roles')
+            .insert({ user_id: sellerId, role_id: 2 });
+        if (error) throw error;
+        return data;
     }
 }
 

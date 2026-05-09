@@ -9,6 +9,8 @@ const shopService = {
             throw new Error("Lỗi khi tạo thông tin Shop.");
         }
         const newAddress = await shopRepo.upsertAddress(newShop.id, shopAddress);
+        // Gán role "seller" cho user
+        await shopRepo.assignUserToSeller(ownerId);
 
         // Trả về kết quả tổng hợp
         return {
