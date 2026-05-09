@@ -55,7 +55,8 @@ const shopRepo = {
         return data;
     },
     async listShops({ keyword, adminStatus, sellerStatus }) {
-        let query = supabase.from('shops').select('*');
+        let query = supabase.from('shops')
+            .select('id, shop_name, shop_logo, shop_description, admin_control_status, seller_control_status, shop_addresses(receiver_name, receiver_phone, city, ward, details)');
         if (adminStatus) query = query.eq('admin_control_status', adminStatus);
         if (sellerStatus) query = query.eq('seller_control_status', sellerStatus);
         if (keyword) query = query.ilike('shop_name', `%${keyword}%`);
