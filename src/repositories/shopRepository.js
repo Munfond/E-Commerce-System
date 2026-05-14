@@ -32,6 +32,7 @@ const shopRepo = {
         const { data, error } = await supabase
             .from('shops')
             .update(updateData)
+            .update('updated_at', new Date().toISOString())
             .eq('owner_id', ownerId)
             .select();
         if (error) throw error;
