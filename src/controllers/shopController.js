@@ -5,9 +5,16 @@ const shopController = {
     registerShop: async (req, res) => {
         try {
             const ownerId = req.user.id; // Lấy từ middleware auth
-            const shopData = req.body;
-            const newShop = await shopService.registerShop(ownerId, shopData);
-            res.status(201).json({ message: 'Đăng ký shop thành công', data: newShop });
+            const { shop_info, shop_address } = req.body;
+            if (!shop_info || !shop_address) {
+                return res.status(400).json({ error: "Thiếu thông tin shop hoặc địa chỉ!" });
+            }
+            const result = await shopService.registerShop(ownerId, shop_info, shop_address);
+
+            res.status(201).json({
+                message: "Đăng ký shop và địa chỉ thành công!",
+                data: result
+            });
         } catch (error) {
             res.status(400).json({ error: error.message });
         }

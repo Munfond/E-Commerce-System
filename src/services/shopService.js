@@ -2,8 +2,21 @@ const shopRepo = require('../repositories/shopRepository');
 
 const shopService = {
     // 1. Đăng ký shop
-    async registerShop(ownerId, shopData) {
-        return await shopRepo.create(ownerId, shopData);
+    async registerShop(ownerId, shopInfo, shopAddress) {
+        const newShop = await shopRepo.create(ownerId, shopInfo);
+
+        if (!newShop || !newShop.id) {
+            throw new Error("Lỗi khi tạo thông tin Shop.");
+        }
+        const newAddress = await shopRepo.upsertAddress(newShop.id, shopAddress);
+        // Gán role "seller" cho user
+        await shopRepo.assignUserToSeller(ownerId);
+
+        // Trả về kết quả tổng hợp
+        return {
+            ...newShop,
+            address: newAddress
+        };
     },
 
     // 2. Lấy thông tin shop của chính mình (có xử lý lỗi not found)

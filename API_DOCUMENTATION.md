@@ -1,7 +1,7 @@
 # 📋 E-Commerce API Documentation
 
 **Last Updated:** May 4, 2026  
-**Base URL:** `http://localhost:3000/api/v1`
+**Base URL:** `http://localhost:3001/api/v1`
 
 ---
 

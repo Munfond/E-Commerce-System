@@ -32,6 +32,7 @@ const shopRepo = {
         const { data, error } = await supabase
             .from('shops')
             .update(updateData)
+            .update('updated_at', new Date().toISOString())
             .eq('owner_id', ownerId)
             .select();
         if (error) throw error;
@@ -55,11 +56,19 @@ const shopRepo = {
         return data;
     },
     async listShops({ keyword, adminStatus, sellerStatus }) {
-        let query = supabase.from('shops').select('*');
+        let query = supabase.from('shops')
+            .select('id, shop_name, shop_logo, shop_description, admin_control_status, seller_control_status, shop_addresses(receiver_name, receiver_phone, city, ward, details)');
         if (adminStatus) query = query.eq('admin_control_status', adminStatus);
         if (sellerStatus) query = query.eq('seller_control_status', sellerStatus);
         if (keyword) query = query.ilike('shop_name', `%${keyword}%`);
         const { data, error } = await query;
+        if (error) throw error;
+        return data;
+    },
+    async assignUserToSeller (sellerId) {
+        const { data, error } = await supabase
+            .from('user_roles')
+            .insert({ user_id: sellerId, role_id: 2 });
         if (error) throw error;
         return data;
     }
