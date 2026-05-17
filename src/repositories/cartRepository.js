@@ -11,7 +11,7 @@ exports.getOrCreateCart = async (userId) => {
     let { data: cart, error } = await cartTable()
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
     // Nếu chưa có cart, tạo mới
     if ((error && error.code === 'PGRST116') || !cart) {
@@ -37,13 +37,23 @@ exports.getCartItems = async (userId) => {
     const { data: items, error } = await cartItemsTable()
         .select(`
             id,
-            product_id,
+            cart_id,
+            variant_id,
             quantity,
-            price_at_time,
-            products:product_id(id, name, price, image_url, stock)
+            product_variants:variant_id (
+                id,
+                name,
+                price,
+                stock,
+                image_url,
+                products:product_id (
+                    id,
+                    name,
+                    brand
+                )
+            )
         `)
         .eq('cart_id', cart.id)
-        .eq('is_deleted', false);
 
     if (error) throw error;
     return items || [];
@@ -53,19 +63,21 @@ exports.getCartItems = async (userId) => {
  * Thêm sản phẩm vào giỏ hàng
  */
 exports.addToCart = async (userId, productId, quantity) => {
-    // Kiểm tra sản phẩm tồn tại
-    const { data: product, error: productError } = await productsTable()
-        .select('id, price, stock')
-        .eq('id', productId)
+    if (quantity < 1) throw new Error('Số lượng thêm phải lớn hơn 0');
+
+    // Không cần kiểm tra sản phẩm tồn tại, tại đã mua đâu, nó kiểu todo-list ấy
+    const { data: variant, error: variantError } = await variantTable()
+        .select('id, stock')
+        .eq('id', variantId)
         .single();
 
-    if (productError || !product) {
-        throw new Error('Sản phẩm không tồn tại');
+    if (variantError || !variant) {
+        throw new Error('Mẫu sản phẩm này không tồn tại');
     }
-
-    if (product.stock < quantity) {
-        throw new Error('Số lượng sản phẩm không đủ');
-    }
+    /*
+    if (variant.stock < quantity) {
+        throw new Error('Số lượng hàng trong kho không đủ');
+    }*/
 
     // Lấy hoặc tạo cart
     const cart = await this.getOrCreateCart(userId);
@@ -74,16 +86,17 @@ exports.addToCart = async (userId, productId, quantity) => {
     const { data: existingItem } = await cartItemsTable()
         .select('*')
         .eq('cart_id', cart.id)
-        .eq('product_id', productId)
-        .eq('is_deleted', false)
+        .eq('variant_id', variantId)
         .single();
 
     if (existingItem) {
         // Cập nhật số lượng
         const newQuantity = existingItem.quantity + quantity;
-        if (product.stock < newQuantity) {
+
+        /*
+        if (variant.stock < newQuantity) {
             throw new Error('Số lượng sản phẩm không đủ');
-        }
+        }*/
 
         const { data, error } = await cartItemsTable()
             .update({ quantity: newQuantity })
@@ -98,10 +111,8 @@ exports.addToCart = async (userId, productId, quantity) => {
         const { data, error } = await cartItemsTable()
             .insert([{
                 cart_id: cart.id,
-                product_id: productId,
+                variant_id: variantId,
                 quantity,
-                price_at_time: product.price,
-                is_deleted: false
             }])
             .select()
             .single();
@@ -115,27 +126,17 @@ exports.addToCart = async (userId, productId, quantity) => {
  * Xóa sản phẩm khỏi giỏ hàng
  */
 exports.removeFromCart = async (userId, itemId) => {
-    // Kiểm tra item thuộc giỏ của user
-    const { data: cartItem, error: itemError } = await cartItemsTable()
-        .select('carts:cart_id(user_id)')
+    const cart = await this.getOrCreateCart(userId);
+
+    const { error, count } = await cartItemsTable()
+        .delete({ count: 'exact' }) // Để biết có dòng nào bị xóa thật không
         .eq('id', itemId)
-        .single();
-
-    if (itemError || !cartItem) {
-        throw new Error('Item không tồn tại trong giỏ');
-    }
-
-    if (cartItem.carts.user_id !== userId) {
-        throw new Error('Không có quyền xóa item này');
-    }
-
-    // Soft delete (đánh dấu is_deleted = true)
-    const { error } = await cartItemsTable()
-        .update({ is_deleted: true })
-        .eq('id', itemId);
+        .eq('cart_id', cart.id);
 
     if (error) throw error;
-    return { success: true, message: 'Xóa sản phẩm thành công' };
+    if (count === 0) throw new Error('Sản phẩm không tồn tại trong giỏ hàng của bạn');
+
+    return { success: true, message: 'Xóa sản phẩm khỏi giỏ hàng thành công' };
 };
 
 /**
@@ -143,13 +144,16 @@ exports.removeFromCart = async (userId, itemId) => {
  */
 exports.updateQuantity = async (userId, itemId, quantity) => {
     if (quantity < 1) {
-        throw new Error('Số lượng phải lớn hơn 0');
+        return await this.removeFromCart(userId, itemId);
     }
+
+    const cart = await this.getOrCreateCart(userId);
 
     // Kiểm tra item thuộc giỏ của user
     const { data: cartItem, error: itemError } = await cartItemsTable()
-        .select('product_id, carts:cart_id(user_id)')
+        .select('variant_id')
         .eq('id', itemId)
+        .eq('cart_id', cart.id)
         .single();
 
     if (itemError || !cartItem) {
@@ -160,15 +164,16 @@ exports.updateQuantity = async (userId, itemId, quantity) => {
         throw new Error('Không có quyền cập nhật item này');
     }
 
-    // Kiểm tra stock
-    const { data: product } = await productsTable()
+    /*
+    //Không cần Kiểm tra stock
+    const { data: variant } = await variantTable()
         .select('stock')
-        .eq('id', cartItem.product_id)
+        .eq('id', cartItem.variant_id)
         .single();
 
-    if (product.stock < quantity) {
+    if (!variant || variant.stock < quantity) {
         throw new Error('Số lượng sản phẩm không đủ');
-    }
+    }*/
 
     // Cập nhật
     const { data, error } = await cartItemsTable()
@@ -188,7 +193,7 @@ exports.clearCart = async (userId) => {
     const cart = await this.getOrCreateCart(userId);
 
     const { error } = await cartItemsTable()
-        .update({ is_deleted: true })
+        .delete()
         .eq('cart_id', cart.id);
 
     if (error) throw error;

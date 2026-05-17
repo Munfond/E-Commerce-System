@@ -45,7 +45,7 @@ const productRepoV2 = {
     },
     async getVariantById(variantId) {
         const {data, error} = await productVariantTable()
-            .select('*')
+            .select('*, products(*)')
             .eq('id', variantId)
             .single();
         if (error) throw error;
@@ -53,7 +53,7 @@ const productRepoV2 = {
     },
     async getProductImageById (productId) {
         const {data, error} = await productImageTable()
-            .select('*')
+            .select('*, products(*)')
             .eq('id', productId)
             .single();
         if (error) throw error;
