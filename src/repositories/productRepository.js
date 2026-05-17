@@ -9,7 +9,7 @@ const categoryTable = () => supabase.from('categories');
  */
 exports.searchProducts = async (searchQuery = '', categoryId = null, sortBy = 'name', limit = 10, offset = 0) => {
     let query = productTable()
-        .select('id, name, price, image_url, category_id')
+        .select('id, name, status, category_id, product_variants(price, stock), product_images(image_url)')
         .eq('status', 'ACTIVE');
 
     if (searchQuery) {
@@ -20,8 +20,8 @@ exports.searchProducts = async (searchQuery = '', categoryId = null, sortBy = 'n
         query = query.eq('category_id', categoryId);
     }
 
-    // Apply sorting
-    const validSortFields = ['name', 'price', 'created_at'];
+    // Apply sorting (removed price sorting since it requires post-processing with joins)
+    const validSortFields = ['name', 'created_at'];
     const [field, direction] = sortBy.includes('-') 
         ? [sortBy.substring(1), 'descending']
         : [sortBy, 'ascending'];
@@ -41,7 +41,7 @@ exports.searchProducts = async (searchQuery = '', categoryId = null, sortBy = 'n
  */
 exports.getProductById = async (id) => {
     const { data, error } = await productTable()
-        .select('*')
+        .select('*, product_variants(*), product_images(*)')
         .eq('id', id)
         .eq('status', 'ACTIVE')
         .single();
@@ -55,7 +55,7 @@ exports.getProductById = async (id) => {
  */
 exports.getProductByIdAdmin = async (id) => {
     const { data, error } = await productTable()
-        .select('*')
+        .select('*, product_variants(*), product_images(*)')
         .eq('id', id)
         .single();
 
@@ -67,9 +67,12 @@ exports.getProductByIdAdmin = async (id) => {
  * Get seller's products
  */
 exports.getSellerProducts = async (sellerId, status = null) => {
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) throw new Error('Seller chưa đăng ký shop');
+
     let query = productTable()
-        .select('id, name, price, stock_quantity, status, category_id')
-        .eq('seller_id', sellerId);
+        .select('id, name, status, category_id, product_variants(price, stock)')
+        .eq('shop_id', shop.id);
 
     if (status) {
         query = query.eq('status', status);
@@ -93,24 +96,48 @@ exports.createProduct = async (sellerId, productData) => {
         price,
         category_id,
         image_url,
-        stock_quantity = 0
+        stock_quantity = 0,
+        brand = null
     } = productData;
+
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) throw new Error('Seller chưa đăng ký shop');
+
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
 
     const { data, error } = await productTable()
         .insert({
-            seller_id: sellerId,
+            shop_id: shop.id,
             name,
             description,
-            price,
             category_id,
-            image_url,
-            stock_quantity,
+            slug,
+            brand,
+            sold_count: 0,
             status: 'PENDING'
         })
         .select('id, name')
         .single();
 
     if (error) throw error;
+
+    // Create variant
+    await supabase.from('product_variants').insert({
+        product_id: data.id,
+        name: 'Mặc định',
+        price: price || 0,
+        stock: stock_quantity
+    });
+
+    // Create image
+    if (image_url) {
+        await supabase.from('product_images').insert({
+            product_id: data.id,
+            image_url,
+            display_order: 0
+        });
+    }
+
     return data;
 };
 
@@ -118,41 +145,68 @@ exports.createProduct = async (sellerId, productData) => {
  * Update product
  */
 exports.updateProduct = async (productId, sellerId, updates) => {
-    // Verify seller owns the product
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) throw new Error('Seller chưa đăng ký shop');
+
     const { data: product, error: fetchError } = await productTable()
-        .select('seller_id')
+        .select('shop_id')
         .eq('id', productId)
         .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
     if (!product) throw new Error('Sản phẩm không tồn tại');
-    if (product.seller_id !== sellerId) throw new Error('Không có quyền chỉnh sửa sản phẩm này');
+    if (product.shop_id !== shop.id) throw new Error('Không có quyền chỉnh sửa sản phẩm này');
 
-    const { data, error } = await productTable()
-        .update(updates)
-        .eq('id', productId)
-        .select()
-        .single();
+    const { price, stock_quantity, image_url, ...productUpdates } = updates;
 
-    if (error) throw error;
-    return data;
+    if (Object.keys(productUpdates).length > 0) {
+        const { error } = await productTable()
+            .update(productUpdates)
+            .eq('id', productId);
+        if (error) throw error;
+    }
+
+    if (price !== undefined || stock_quantity !== undefined) {
+        const variantUpdates = {};
+        if (price !== undefined) variantUpdates.price = price;
+        if (stock_quantity !== undefined) variantUpdates.stock = stock_quantity;
+
+        const { data: variants } = await supabase.from('product_variants').select('id').eq('product_id', productId).limit(1);
+        if (variants && variants.length > 0) {
+            await supabase.from('product_variants').update(variantUpdates).eq('id', variants[0].id);
+        }
+    }
+
+    if (image_url !== undefined) {
+        const { data: images } = await supabase.from('product_images').select('id').eq('product_id', productId).limit(1);
+        if (images && images.length > 0) {
+            await supabase.from('product_images').update({ image_url }).eq('id', images[0].id);
+        } else {
+            await supabase.from('product_images').insert({ product_id: productId, image_url, display_order: 0 });
+        }
+    }
+
+    return { id: productId, ...updates };
 };
 
 /**
  * Delete product (seller - soft delete)
  */
 exports.deleteProduct = async (productId, sellerId) => {
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) throw new Error('Seller chưa đăng ký shop');
+
     const { data: product, error: fetchError } = await productTable()
-        .select('seller_id')
+        .select('shop_id')
         .eq('id', productId)
         .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
     if (!product) throw new Error('Sản phẩm không tồn tại');
-    if (product.seller_id !== sellerId) throw new Error('Không có quyền xóa sản phẩm này');
+    if (product.shop_id !== shop.id) throw new Error('Không có quyền xóa sản phẩm này');
 
     const { error } = await productTable()
-        .update({ status: 'DELETED' })
+        .update({ status: 'HIDDEN' })
         .eq('id', productId);
 
     if (error) throw error;
@@ -163,7 +217,6 @@ exports.deleteProduct = async (productId, sellerId) => {
  * Delete product (admin - hard delete)
  */
 exports.adminDeleteProduct = async (productId, reason) => {
-    // Store deletion reason if needed
     const { error } = await productTable()
         .delete()
         .eq('id', productId);
@@ -176,20 +229,26 @@ exports.adminDeleteProduct = async (productId, reason) => {
  * Update stock quantity
  */
 exports.updateStock = async (productId, sellerId, stockQuantity) => {
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) throw new Error('Seller chưa đăng ký shop');
+
     const { data: product, error: fetchError } = await productTable()
-        .select('seller_id')
+        .select('shop_id')
         .eq('id', productId)
         .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
     if (!product) throw new Error('Sản phẩm không tồn tại');
-    if (product.seller_id !== sellerId) throw new Error('Không có quyền cập nhật sản phẩm này');
+    if (product.shop_id !== shop.id) throw new Error('Không có quyền cập nhật sản phẩm này');
 
-    const { error } = await productTable()
-        .update({ stock_quantity: Math.max(0, parseInt(stockQuantity)) })
-        .eq('id', productId);
+    const { data: variants } = await supabase.from('product_variants').select('id').eq('product_id', productId).limit(1);
+    if (variants && variants.length > 0) {
+        const { error } = await supabase.from('product_variants')
+            .update({ stock: Math.max(0, parseInt(stockQuantity)) })
+            .eq('id', variants[0].id);
+        if (error) throw error;
+    }
 
-    if (error) throw error;
     return { success: true };
 };
 
@@ -197,7 +256,9 @@ exports.updateStock = async (productId, sellerId, stockQuantity) => {
  * Get seller statistics
  */
 exports.getSellerStatistics = async (sellerId, period = 'month') => {
-    // Calculate date range based on period
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) return { total_revenue: 0, total_orders: 0, period, currency: 'VND' };
+
     const now = new Date();
     let startDate;
 
@@ -215,17 +276,16 @@ exports.getSellerStatistics = async (sellerId, period = 'month') => {
             startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Query orders for seller's products
     const { data: orders, error } = await supabase
         .from('orders')
         .select(`
             id,
             total_amount,
             created_at,
-            order_items (
+            order_items!inner(
                 quantity,
-                price,
-                product:products(seller_id)
+                price_at_purchase,
+                product_variants!inner(product_id)
             )
         `)
         .gte('created_at', startDate.toISOString())
@@ -233,25 +293,27 @@ exports.getSellerStatistics = async (sellerId, period = 'month') => {
 
     if (error) throw error;
 
-    // Filter for seller's products and calculate total
+    // Filter to only include products owned by this shop
+    // Since Supabase join deep filtering is tricky, we filter manually
+    const { data: shopProducts } = await productTable().select('id').eq('shop_id', shop.id);
+    const shopProductIds = new Set(shopProducts?.map(p => p.id) || []);
+
     let totalRevenue = 0;
     let totalOrders = 0;
+    const uniqueOrderIds = new Set();
 
     if (orders && orders.length > 0) {
-        const sellerOrders = orders.filter(order => 
-            order.order_items && 
-            order.order_items.some(item => item.product?.seller_id === sellerId)
-        );
-
-        totalOrders = sellerOrders.length;
-        
-        sellerOrders.forEach(order => {
+        orders.forEach(order => {
+            let isShopOrder = false;
             order.order_items?.forEach(item => {
-                if (item.product?.seller_id === sellerId) {
-                    totalRevenue += item.quantity * item.price;
+                if (item.product_variants && shopProductIds.has(item.product_variants.product_id)) {
+                    isShopOrder = true;
+                    totalRevenue += item.quantity * (item.price_at_purchase || 0);
                 }
             });
+            if (isShopOrder) uniqueOrderIds.add(order.id);
         });
+        totalOrders = uniqueOrderIds.size;
     }
 
     return {
@@ -267,7 +329,7 @@ exports.getSellerStatistics = async (sellerId, period = 'month') => {
  */
 exports.getPendingProducts = async (limit = 10, offset = 0) => {
     const { data, error, count } = await productTable()
-        .select('id, name, seller_id, created_at, status')
+        .select('id, name, shop_id, created_at, status')
         .eq('status', 'PENDING')
         .order('created_at', { ascending: true })
         .range(offset, offset + limit - 1);
@@ -295,11 +357,11 @@ exports.productExists = async (id) => {
 exports.createReview = async (productId, userId, rating, comment, imageUrls = []) => {
     const { data, error } = await reviewTable()
         .insert({
-            product_id: productId,
+            order_item_id: productId,
             user_id: userId,
             rating,
             comment,
-            image_urls: imageUrls
+            images_json: imageUrls
         })
         .select('id, rating')
         .single();
@@ -314,7 +376,7 @@ exports.createReview = async (productId, userId, rating, comment, imageUrls = []
 exports.getProductReviews = async (productId, limit = 10, offset = 0) => {
     const { data, error, count } = await reviewTable()
         .select('*')
-        .eq('product_id', productId)
+        .eq('order_item_id', productId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -325,14 +387,22 @@ exports.getProductReviews = async (productId, limit = 10, offset = 0) => {
 /**
  * Get seller info (for products)
  */
-exports.getSellerInfo = async (sellerId) => {
-    const { data, error } = await supabase
-        .schema('private_auth')
-        .from('users')
-        .select('id, username, email')
-        .eq('id', sellerId)
+exports.getSellerInfo = async (shopId) => {
+    const { data: shop, error } = await supabase
+        .from('shops')
+        .select('owner_id')
+        .eq('id', shopId)
         .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+    if (!shop) return null;
+
+    const { data: user } = await supabase
+        .schema('private_auth')
+        .from('users')
+        .select('id, username, email')
+        .eq('id', shop.owner_id)
+        .single();
+
+    return user;
 };

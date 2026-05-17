@@ -37,7 +37,7 @@ exports.getProductsByCategory = async (categoryId, page = 1, limit = 10) => {
 /**
  * Tạo danh mục (Admin only)
  */
-exports.createCategory = async (name, description, parentId = null) => {
+exports.createCategory = async (name, description, parentId = null, imageUrl = null) => {
     try {
         // Validate input
         if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -62,7 +62,7 @@ exports.createCategory = async (name, description, parentId = null) => {
             }
         }
 
-        const result = await categoryRepo.createCategory(name, description, parentId);
+        const result = await categoryRepo.createCategory(name, description, parentId, imageUrl);
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi tạo danh mục: ${err.message}`);
@@ -72,7 +72,7 @@ exports.createCategory = async (name, description, parentId = null) => {
 /**
  * Cập nhật danh mục (Admin only)
  */
-exports.updateCategory = async (id, name, description) => {
+exports.updateCategory = async (id, name, description, imageUrl = null) => {
     try {
         // Kiểm tra danh mục có tồn tại không
         const category = await categoryRepo.getCategoryById(id);
@@ -104,6 +104,10 @@ exports.updateCategory = async (id, name, description) => {
                 throw new Error('Mô tả tối đa 1000 ký tự');
             }
             updates.description = description;
+        }
+
+        if (imageUrl !== undefined) {
+            updates.image_url = imageUrl;
         }
 
         if (Object.keys(updates).length === 0) {

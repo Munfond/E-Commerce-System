@@ -2,7 +2,7 @@ const supabase = require('../config/supabase');
 
 const cartTable = () => supabase.from('carts');
 const cartItemsTable = () => supabase.from('cart_items');
-const productsTable = () => supabase.from('products');
+const productVariantsTable = () => supabase.from('product_variants');
 
 /**
  * Lấy hoặc tạo giỏ hàng cho user
@@ -37,10 +37,10 @@ exports.getCartItems = async (userId) => {
     const { data: items, error } = await cartItemsTable()
         .select(`
             id,
-            product_id,
+            variant_id,
             quantity,
             price_at_time,
-            products:product_id(id, name, price, image_url, stock)
+            product_variants:variant_id(id, name, price, stock, products(name, shop_id))
         `)
         .eq('cart_id', cart.id)
         .eq('is_deleted', false);
@@ -50,21 +50,21 @@ exports.getCartItems = async (userId) => {
 };
 
 /**
- * Thêm sản phẩm vào giỏ hàng
+ * Thêm sản phẩm (biến thể) vào giỏ hàng
  */
-exports.addToCart = async (userId, productId, quantity) => {
-    // Kiểm tra sản phẩm tồn tại
-    const { data: product, error: productError } = await productsTable()
+exports.addToCart = async (userId, variantId, quantity) => {
+    // Kiểm tra biến thể tồn tại
+    const { data: variant, error: variantError } = await productVariantsTable()
         .select('id, price, stock')
-        .eq('id', productId)
+        .eq('id', variantId)
         .single();
 
-    if (productError || !product) {
-        throw new Error('Sản phẩm không tồn tại');
+    if (variantError || !variant) {
+        throw new Error('Biến thể sản phẩm không tồn tại');
     }
 
-    if (product.stock < quantity) {
-        throw new Error('Số lượng sản phẩm không đủ');
+    if (variant.stock < quantity) {
+        throw new Error('Số lượng tồn kho không đủ');
     }
 
     // Lấy hoặc tạo cart
@@ -74,15 +74,15 @@ exports.addToCart = async (userId, productId, quantity) => {
     const { data: existingItem } = await cartItemsTable()
         .select('*')
         .eq('cart_id', cart.id)
-        .eq('product_id', productId)
+        .eq('variant_id', variantId)
         .eq('is_deleted', false)
         .single();
 
     if (existingItem) {
         // Cập nhật số lượng
         const newQuantity = existingItem.quantity + quantity;
-        if (product.stock < newQuantity) {
-            throw new Error('Số lượng sản phẩm không đủ');
+        if (variant.stock < newQuantity) {
+            throw new Error('Số lượng tồn kho không đủ');
         }
 
         const { data, error } = await cartItemsTable()
@@ -98,9 +98,9 @@ exports.addToCart = async (userId, productId, quantity) => {
         const { data, error } = await cartItemsTable()
             .insert([{
                 cart_id: cart.id,
-                product_id: productId,
+                variant_id: variantId,
                 quantity,
-                price_at_time: product.price,
+                price_at_time: variant.price,
                 is_deleted: false
             }])
             .select()
@@ -148,7 +148,7 @@ exports.updateQuantity = async (userId, itemId, quantity) => {
 
     // Kiểm tra item thuộc giỏ của user
     const { data: cartItem, error: itemError } = await cartItemsTable()
-        .select('product_id, carts:cart_id(user_id)')
+        .select('variant_id, carts:cart_id(user_id)')
         .eq('id', itemId)
         .single();
 
@@ -161,13 +161,13 @@ exports.updateQuantity = async (userId, itemId, quantity) => {
     }
 
     // Kiểm tra stock
-    const { data: product } = await productsTable()
+    const { data: variant } = await productVariantsTable()
         .select('stock')
-        .eq('id', cartItem.product_id)
+        .eq('id', cartItem.variant_id)
         .single();
 
-    if (product.stock < quantity) {
-        throw new Error('Số lượng sản phẩm không đủ');
+    if (variant.stock < quantity) {
+        throw new Error('Số lượng tồn kho không đủ');
     }
 
     // Cập nhật

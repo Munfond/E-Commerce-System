@@ -116,7 +116,7 @@ exports.getAdminOrders = async (status = null, shopId = null, page = 1, limit = 
 /**
  * Create new order (checkout)
  */
-exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) => {
+exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
     try {
         // Validate input
         if (!Array.isArray(cartItems) || cartItems.length === 0) {
@@ -132,30 +132,26 @@ exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) 
             throw new Error('Phương thức thanh toán không được hỗ trợ');
         }
 
-        if (!shippingAddress || typeof shippingAddress !== 'string' || shippingAddress.trim().length === 0) {
+        if (!addressId || typeof addressId !== 'string' || addressId.trim().length === 0) {
             throw new Error('Địa chỉ giao hàng không được để trống');
-        }
-
-        if (shippingAddress.length > 500) {
-            throw new Error('Địa chỉ giao hàng tối đa 500 ký tự');
         }
 
         // Validate cart items
         const validatedItems = [];
         for (const item of cartItems) {
-            if (!item.product_id || !item.quantity) {
+            if (!item.variant_id || !item.quantity) {
                 throw new Error('Dữ liệu sản phẩm trong giỏ không hợp lệ');
             }
             if (item.quantity <= 0) {
                 throw new Error('Số lượng sản phẩm phải lớn hơn 0');
             }
             validatedItems.push({
-                product_id: item.product_id,
+                variant_id: item.variant_id,
                 quantity: parseInt(item.quantity)
             });
         }
 
-        const result = await orderRepo.createOrder(userId, validatedItems, paymentMethod, shippingAddress.trim());
+        const result = await orderRepo.createOrder(userId, validatedItems, paymentMethod, addressId.trim());
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi tạo đơn hàng: ${err.message}`);

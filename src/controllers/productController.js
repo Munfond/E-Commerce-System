@@ -83,12 +83,12 @@ exports.getSellerProducts = async (req, res) => {
 /**
  * POST /seller/products
  * Create new product
- * Body: { name, description, price, category_id, image_url, stock_quantity }
+ * Body: { name, description, price, category_id, image_url, stock_quantity, brand? }
  */
 exports.createProduct = async (req, res) => {
     try {
         const sellerId = req.user.id;
-        const { name, description, price, category_id, image_url, stock_quantity } = req.body;
+        const { name, description, price, category_id, image_url, stock_quantity, brand } = req.body;
 
         const result = await productService.createProduct(sellerId, {
             name,
@@ -96,7 +96,8 @@ exports.createProduct = async (req, res) => {
             price,
             category_id,
             image_url,
-            stock_quantity
+            stock_quantity,
+            brand
         });
 
         return res.status(201).json(result);
@@ -108,7 +109,7 @@ exports.createProduct = async (req, res) => {
 /**
  * PUT /seller/products/:id
  * Update product
- * Body: { name, description, price, category_id, image_url }
+ * Body: { name, description, price, category_id, image_url, brand? }
  */
 exports.updateProduct = async (req, res) => {
     try {

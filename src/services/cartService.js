@@ -11,9 +11,9 @@ exports.getCart = async (userId) => {
     return {
         items: items.map(item => ({
             id: item.id,
-            product_id: item.product_id,
-            product_name: item.products?.name,
-            image_url: item.products?.image_url,
+            variant_id: item.variant_id,
+            product_name: item.product_variants?.products?.name,
+            variant_name: item.product_variants?.name,
             price: item.price_at_time,
             quantity: item.quantity,
             subtotal: item.price_at_time * item.quantity

@@ -143,3 +143,68 @@ exports.getMe = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+exports.requestPasswordReset = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: "Vui lòng cung cấp email." });
+        }
+        const result = await authService.requestPasswordReset(email);
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+exports.verifyPasswordReset = async (req, res) => {
+    try {
+        const { email, otpCode } = req.body;
+        if (!email || !otpCode) {
+            return res.status(400).json({ error: "Vui lòng cung cấp email và mã OTP." });
+        }
+        const result = await authService.verifyPasswordReset(email, otpCode);
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+exports.resetPassword = async (req, res) => {
+    try {
+        const { resetToken, newPassword } = req.body;
+        if (!resetToken || !newPassword) {
+            return res.status(400).json({ error: "Vui lòng cung cấp token và mật khẩu mới." });
+        }
+        const result = await authService.resetPassword(resetToken, newPassword);
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+exports.googleLogin = async (req, res) => {
+    // Mock implementation for testing
+    res.status(200).json({
+        message: "Đây là API giả lập Đăng nhập Google. Truy cập callback để hoàn tất.",
+        mock_auth_url: "http://localhost:3000/api/v1/auth/google/callback?code=mock_code_123"
+    });
+};
+
+exports.googleCallback = async (req, res) => {
+    // Mock implementation for testing
+    const { code } = req.query;
+    if (!code) {
+        return res.status(400).json({ error: "Thiếu Authorization Code." });
+    }
+    res.status(200).json({
+        message: "Đăng nhập Google giả lập thành công!",
+        accessToken: "mock_access_token_google",
+        refreshToken: "mock_refresh_token_google",
+        user: {
+            username: "Google User",
+            email: "googleuser@example.com",
+            roles: ["customer"]
+        }
+    });
+};

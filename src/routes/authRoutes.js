@@ -18,8 +18,14 @@ router.delete('/sessions', authController.logout);
 // Link: /api/v1/auth/sessions/refresh
 router.post('/sessions/refresh', authController.refreshSession);
 
-// Link: /api/v1/auth/sessions/google
-//router.post('/sessions/google', authController.googleLogin);
+// Google OAuth Mock Routes
+router.get('/google', authController.googleLogin);
+router.get('/google/callback', authController.googleCallback);
+
+// Password Reset Routes
+router.post('/password-reset/request', authController.requestPasswordReset);
+router.post('/password-reset/verify', authController.verifyPasswordReset);
+router.post('/password-reset/reset', authController.resetPassword);
 
 // Route lấy thông tin cá nhân (Phải đăng nhập mới lấy được)
 router.get('/me', authenticateToken, authController.getMe);

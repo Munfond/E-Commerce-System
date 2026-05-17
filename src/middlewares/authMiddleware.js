@@ -30,7 +30,7 @@ exports.authorizeAdmin = (req, res, next) => {
     }
 
     // Kiểm tra user có vai trò admin không
-    if (req.user.role !== 'admin') {
+    if (!req.user.roles || !req.user.roles.includes('admin')) {
         return res.status(403).json({ error: "Bạn không có quyền truy cập tài nguyên này." });
     }
 
@@ -48,7 +48,7 @@ exports.authorizeSeller = (req, res, next) => {
     }
 
     // Kiểm tra user có vai trò seller không
-    if (req.user.role !== 'seller' && req.user.role !== 'admin') {
+    if (!req.user.roles || (!req.user.roles.includes('seller') && !req.user.roles.includes('admin'))) {
         return res.status(403).json({ error: "Bạn không có quyền truy cập tài nguyên này." });
     }
 

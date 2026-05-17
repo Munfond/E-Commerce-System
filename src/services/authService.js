@@ -130,3 +130,46 @@ exports.refreshSession = async (oldRefreshToken) => {
         refreshToken: newRefreshToken
     };
 };
+
+exports.requestPasswordReset = async (email) => {
+    const user = await userRepo.findByEmail(email);
+    if (!user || user.status !== 'ACTIVE') {
+        throw new Error('Email không tồn tại hoặc chưa được kích hoạt.');
+    }
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOtp = await bcrypt.hash(otp, 10);
+
+    await otpRepo.createOtp(email, hashedOtp, 'PASSWORD_RESET');
+    await mailService.sendOTP(email, otp);
+    return { message: "Mã OTP đặt lại mật khẩu đã được gửi." };
+};
+
+exports.verifyPasswordReset = async (email, otpCode) => {
+    const result = await otpRepo.verifyOtp(email, otpCode, 'PASSWORD_RESET');
+    if (!result.valid) {
+        throw new Error(result.message);
+    }
+    
+    // Sinh ra một resetToken tạm thời
+    const resetToken = jwt.sign({ email, purpose: 'password_reset' }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    
+    return { resetToken, message: "Xác thực OTP thành công." };
+};
+
+exports.resetPassword = async (resetToken, newPassword) => {
+    let decoded;
+    try {
+        decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch (err) {
+        throw new Error("Token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.");
+    }
+    
+    if (decoded.purpose !== 'password_reset') {
+        throw new Error("Token không hợp lệ cho tác vụ này.");
+    }
+    
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await userRepo.updatePassword(decoded.email, hashedPassword);
+    
+    return { message: "Đặt lại mật khẩu thành công." };
+};

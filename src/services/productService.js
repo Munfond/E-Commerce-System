@@ -139,7 +139,7 @@ exports.getSellerProducts = async (sellerId, status = null) => {
  */
 exports.createProduct = async (sellerId, productData) => {
     try {
-        const { name, description, price, category_id, image_url, stock_quantity } = productData;
+        const { name, description, price, category_id, image_url, stock_quantity, brand } = productData;
 
         // Validate required fields
         if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -175,7 +175,8 @@ exports.createProduct = async (sellerId, productData) => {
             price: parseFloat(price),
             category_id,
             image_url,
-            stock_quantity: stock_quantity ? parseInt(stock_quantity) : 0
+            stock_quantity: stock_quantity ? parseInt(stock_quantity) : 0,
+            brand: brand || null
         });
 
         return result;
@@ -227,6 +228,10 @@ exports.updateProduct = async (productId, sellerId, updates) => {
 
         if (updates.image_url !== undefined) {
             validUpdates.image_url = updates.image_url;
+        }
+
+        if (updates.brand !== undefined) {
+            validUpdates.brand = updates.brand;
         }
 
         if (Object.keys(validUpdates).length === 0) {

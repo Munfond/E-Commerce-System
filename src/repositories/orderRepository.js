@@ -3,8 +3,8 @@ const supabase = require('../config/supabase');
 const orderTable = () => supabase.from('orders');
 const orderItemsTable = () => supabase.from('order_items');
 const orderHistoryTable = () => supabase.from('order_history');
-const cartTable = () => supabase.from('cart');
 const productTable = () => supabase.from('products');
+const productVariantsTable = () => supabase.from('product_variants');
 
 /**
  * Get customer's orders
@@ -41,7 +41,7 @@ exports.getOrderById = async (orderId, userId) => {
 
     // Get order items
     const { data: items, error: itemsError } = await orderItemsTable()
-        .select('*, product:products(name, image_url)')
+        .select('*, product_variants(name, price, products(name))')
         .eq('order_id', orderId);
 
     if (itemsError) throw itemsError;
@@ -75,7 +75,7 @@ exports.getOrderByIdAdmin = async (orderId) => {
 
     // Get order items
     const { data: items, error: itemsError } = await orderItemsTable()
-        .select('*, product:products(name, image_url, seller_id)')
+        .select('*, product_variants(name, products(name, shop_id))')
         .eq('order_id', orderId);
 
     if (itemsError) throw itemsError;
@@ -99,18 +99,26 @@ exports.getOrderByIdAdmin = async (orderId) => {
  * Get seller's orders
  */
 exports.getSellerOrders = async (sellerId, status = null, dateRange = null) => {
+    // Get shop
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) return [];
+
     // Get products belonging to seller
     const { data: sellerProducts, error: productsError } = await productTable()
         .select('id')
-        .eq('seller_id', sellerId);
+        .eq('shop_id', shop.id);
 
-    if (productsError) throw productsError;
-
-    if (!sellerProducts || sellerProducts.length === 0) {
-        return [];
-    }
-
+    if (productsError || !sellerProducts || sellerProducts.length === 0) return [];
+    
     const productIds = sellerProducts.map(p => p.id);
+
+    const { data: variants } = await productVariantsTable()
+        .select('id')
+        .in('product_id', productIds);
+        
+    if (!variants || variants.length === 0) return [];
+
+    const variantIds = variants.map(v => v.id);
 
     // Get orders that contain seller's products
     let query = orderItemsTable()
@@ -122,11 +130,10 @@ exports.getSellerOrders = async (sellerId, status = null, dateRange = null) => {
                 total_amount,
                 status,
                 created_at,
-                payment_method,
-                users:user_id(username, email, phone)
+                payment_method
             )
         `)
-        .in('product_id', productIds);
+        .in('variant_id', variantIds);
 
     const { data, error } = await query;
 
@@ -184,7 +191,6 @@ exports.getAdminOrders = async (status = null, shopId = null, limit = 10, offset
  * Create new order from cart
  */
 exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) => {
-    // Start transaction-like behavior
     // Create order
     const { data: order, error: orderError } = await orderTable()
         .insert({
@@ -192,7 +198,7 @@ exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) 
             total_amount: 0, // Will be calculated
             status: 'PENDING',
             payment_method: paymentMethod,
-            shipping_address: shippingAddress
+            address_id: shippingAddress
         })
         .select()
         .single();
@@ -204,27 +210,28 @@ exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) 
     const orderItemsData = [];
 
     for (const cartItem of cartItems) {
-        const { data: product, error: productError } = await productTable()
-            .select('price, stock_quantity')
-            .eq('id', cartItem.product_id)
+        // Now cartItem uses variant_id instead of product_id
+        const { data: variant, error: variantError } = await productVariantsTable()
+            .select('price, stock')
+            .eq('id', cartItem.variant_id)
             .single();
 
-        if (productError || !product) {
-            throw new Error(`Sản phẩm ${cartItem.product_id} không tồn tại`);
+        if (variantError || !variant) {
+            throw new Error(`Sản phẩm (Biến thể) ${cartItem.variant_id} không tồn tại`);
         }
 
-        if (product.stock_quantity < cartItem.quantity) {
+        if (variant.stock < cartItem.quantity) {
             throw new Error(`Hết hàng: Số lượng tồn kho không đủ`);
         }
 
-        const itemTotal = product.price * cartItem.quantity;
+        const itemTotal = variant.price * cartItem.quantity;
         totalAmount += itemTotal;
 
         orderItemsData.push({
             order_id: order.id,
-            product_id: cartItem.product_id,
+            variant_id: cartItem.variant_id,
             quantity: cartItem.quantity,
-            price: product.price
+            price_at_purchase: variant.price
         });
     }
 
@@ -248,11 +255,6 @@ exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) 
             status: 'PENDING',
             message: 'Đơn hàng được tạo'
         });
-
-    // Clear user's cart
-    await cartTable()
-        .delete()
-        .eq('user_id', userId);
 
     return { id: order.id, total_amount: totalAmount };
 };
@@ -298,27 +300,26 @@ exports.cancelOrder = async (orderId, userId, reason) => {
  * Update order status (seller)
  */
 exports.updateOrderStatus = async (orderId, sellerId, newStatus) => {
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) throw new Error('Seller chưa đăng ký shop');
+
     // Verify seller has products in this order
     const { data: orderItems, error: itemsError } = await orderItemsTable()
-        .select('product_id')
+        .select('variant_id, product_variants(product_id)')
         .eq('order_id', orderId);
 
-    if (itemsError) throw itemsError;
-
-    if (!orderItems || orderItems.length === 0) {
+    if (itemsError || !orderItems || orderItems.length === 0) {
         throw new Error('Đơn hàng không tồn tại');
     }
 
-    // Check if any product belongs to seller
-    const productIds = orderItems.map(item => item.product_id);
+    const productIds = orderItems.map(item => item.product_variants.product_id);
+    
     const { data: products, error: productsError } = await productTable()
         .select('id')
         .in('id', productIds)
-        .eq('seller_id', sellerId);
+        .eq('shop_id', shop.id);
 
-    if (productsError) throw productsError;
-
-    if (!products || products.length === 0) {
+    if (productsError || !products || products.length === 0) {
         throw new Error('Không có quyền cập nhật đơn hàng này');
     }
 
@@ -369,8 +370,6 @@ exports.createPaymentLink = async (orderId) => {
         throw new Error('Đơn hàng không tồn tại');
     }
 
-    // Generate payment link (integrate with VNPay/Momo)
-    // This is a placeholder - integrate with actual payment gateway
     const paymentUrl = generatePaymentUrl(orderId, order.total_amount);
 
     return { payment_url: paymentUrl };
@@ -381,19 +380,22 @@ exports.createPaymentLink = async (orderId) => {
  */
 exports.updateStockAfterOrder = async (orderId) => {
     const { data: items, error: itemsError } = await orderItemsTable()
-        .select('product_id, quantity')
+        .select('variant_id, quantity')
         .eq('order_id', orderId);
 
     if (itemsError) throw itemsError;
 
     for (const item of items) {
-        const { error: updateError } = await productTable()
-            .update({
-                stock_quantity: supabase.raw(`stock_quantity - ${item.quantity}`)
-            })
-            .eq('id', item.product_id);
+        const { data: variant } = await productVariantsTable()
+            .select('stock')
+            .eq('id', item.variant_id)
+            .single();
 
-        if (updateError) throw updateError;
+        if (variant) {
+            await productVariantsTable()
+                .update({ stock: Math.max(0, variant.stock - item.quantity) })
+                .eq('id', item.variant_id);
+        }
     }
 };
 
@@ -416,8 +418,6 @@ function getStatusMessage(status) {
  * Helper: Generate payment URL
  */
 function generatePaymentUrl(orderId, amount) {
-    // Placeholder for VNPay/Momo integration
-    // Should return actual payment gateway URL
     const baseUrl = process.env.PAYMENT_GATEWAY_URL || 'https://payment.example.com';
     return `${baseUrl}/pay?orderId=${orderId}&amount=${amount}&timestamp=${Date.now()}`;
 }

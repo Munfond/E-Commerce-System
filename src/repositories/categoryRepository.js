@@ -8,7 +8,7 @@ const productTable = () => supabase.from('products');
  */
 exports.getAllCategories = async () => {
     const { data, error } = await categoryTable()
-        .select('id, name, slug')
+        .select('id, name, slug, image_url')
         .order('name', { ascending: true });
 
     if (error) throw error;
@@ -56,7 +56,7 @@ exports.getProductsByCategory = async (categoryId, page = 1, limit = 10) => {
 /**
  * Tạo danh mục mới
  */
-exports.createCategory = async (name, description, parentId = null) => {
+exports.createCategory = async (name, description, parentId = null, imageUrl = null) => {
     // Tạo slug từ name
     const slug = name
         .toLowerCase()
@@ -69,7 +69,8 @@ exports.createCategory = async (name, description, parentId = null) => {
             name,
             slug,
             description,
-            parent_id: parentId
+            parent_id: parentId,
+            image_url: imageUrl
         })
         .select('id, name')
         .single();

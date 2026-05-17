@@ -123,12 +123,23 @@ exports.updatePassword = async (email, hashedPassword) => {
 };
 
 exports.getUserRoles = async (userId) => {
-    const { data, error } = await userRoleTable()
+    // 1. Get role IDs for the user
+    const { data: userRoles, error: urError } = await userRoleTable()
         .select('role_id')
         .eq('user_id', userId);
 
-    if (error) throw error;
-    return data.map(r => r.role_id);
+    if (urError) throw urError;
+    if (!userRoles || userRoles.length === 0) return [];
+
+    const roleIds = userRoles.map(r => r.role_id);
+
+    // 2. Fetch role names from public.roles using those IDs
+    const { data: roles, error: rError } = await roleTable()
+        .select('role_name')
+        .in('id', roleIds);
+
+    if (rError) throw rError;
+    return roles.map(r => r.role_name);
 };
 
 exports.upsertPendingSeller = async (userData) => {
@@ -179,4 +190,15 @@ exports.upsertPendingSeller = async (userData) => {
         console.error("Không tìm thấy user hoặc role để gán:", { user, role });
     }
     return user;
-}
+};
+
+exports.updateProfile = async (userId, updates) => {
+    const { data, error } = await userTable()
+        .update({ ...updates, updated_at: new Date() })
+        .eq('id', userId)
+        .select('id, username, email, phone, avatar_url')
+        .single();
+
+    if (error) throw error;
+    return data;
+};
