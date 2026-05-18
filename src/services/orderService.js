@@ -218,7 +218,7 @@ exports.getOrderStatus = async (orderId, sellerId) => {
 /**
  * Get payment link
  */
-exports.getPaymentLink = async (orderId, userId) => {
+exports.getPaymentLink = async (orderId, userId, options = {}) => {
     try {
         if (!orderId) {
             throw new Error('ID đơn hàng không được để trống');
@@ -235,7 +235,16 @@ exports.getPaymentLink = async (orderId, userId) => {
             throw new Error('Chỉ có thể tạo link thanh toán cho đơn hàng chưa thanh toán');
         }
 
-        const result = await orderRepo.createPaymentLink(orderId);
+        if (order.payment_method !== 'VNPAY') {
+            throw new Error(
+                'Đơn hàng không dùng VNPay. Khi tạo đơn hãy đặt payment_method = "VNPAY"'
+            );
+        }
+
+        const result = await orderRepo.createPaymentLink(orderId, options.ipAddr, {
+            locale: options.locale,
+            bankCode: options.bankCode
+        });
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi tạo link thanh toán: ${err.message}`);

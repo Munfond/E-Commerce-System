@@ -11,6 +11,7 @@ const customerOrderRoutes = require('./routes/customerOrderRoutes');
 const sellerRoutes = require('./routes/sellerRoutes');
 const shopRoutes = require('./routes/shopRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
@@ -34,6 +35,8 @@ app.use('/sellers', sellerRoutes);
 app.use('/api/v1/shops', shopRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/admin', adminRoutes);
+app.use('/api/v1/payments', paymentRoutes);
+app.use('/payments', paymentRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: "E-Commerce API is running..." });

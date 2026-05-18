@@ -207,12 +207,23 @@ exports.getPaymentLink = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
+        const { bank_code, locale } = req.query;
 
         if (!id) {
             return res.status(400).json({ error: 'Thiếu ID đơn hàng' });
         }
 
-        const result = await orderService.getPaymentLink(id, userId);
+        const ipAddr =
+            req.headers['x-forwarded-for'] ||
+            req.socket?.remoteAddress ||
+            req.connection?.remoteAddress ||
+            '127.0.0.1';
+
+        const result = await orderService.getPaymentLink(id, userId, {
+            ipAddr,
+            bankCode: bank_code || null,
+            locale: locale || 'vn'
+        });
         return res.status(200).json(result);
     } catch (err) {
         return res.status(mapOrderErrorStatus(err)).json({ error: err.message });

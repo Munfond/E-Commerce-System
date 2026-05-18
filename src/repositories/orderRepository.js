@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const vnpayService = require('../services/vnpayService');
 
 const orderTable = () => supabase.from('orders');
 const orderItemsTable = () => supabase.from('order_items');
@@ -389,11 +390,11 @@ exports.getOrderStatus = async (orderId, sellerId) => {
 };
 
 /**
- * Create payment link (for external payment gateway)
+ * Create VNPay payment link
  */
-exports.createPaymentLink = async (orderId) => {
+exports.createPaymentLink = async (orderId, ipAddr, options = {}) => {
     const { data: order, error } = await orderTable()
-        .select('id, total_amount')
+        .select('id, total_amount, status, payment_method')
         .eq('id', orderId)
         .single();
 
@@ -401,9 +402,25 @@ exports.createPaymentLink = async (orderId) => {
         throw new Error('Đơn hàng không tồn tại');
     }
 
-    const paymentUrl = generatePaymentUrl(orderId, order.total_amount);
+    if (order.payment_method && order.payment_method !== 'VNPAY') {
+        throw new Error(
+            `Đơn hàng dùng ${order.payment_method}. Chỉ tạo link VNPay cho đơn có payment_method = VNPAY`
+        );
+    }
 
-    return { payment_url: paymentUrl };
+    const vnpay = vnpayService.createPaymentUrl({
+        orderId: order.id,
+        amount: order.total_amount,
+        orderInfo: `Thanh toan don hang ${order.id}`,
+        ipAddr,
+        locale: options.locale || 'vn',
+        bankCode: options.bankCode || null
+    });
+
+    return {
+        order_id: order.id,
+        ...vnpay
+    };
 };
 
 /**
@@ -453,14 +470,6 @@ exports.restoreStockAfterCancel = async (orderId) => {
         }
     }
 };
-
-/**
- * Helper: Generate payment URL
- */
-function generatePaymentUrl(orderId, amount) {
-    const baseUrl = process.env.PAYMENT_GATEWAY_URL || 'https://payment.example.com';
-    return `${baseUrl}/pay?orderId=${orderId}&amount=${amount}&timestamp=${Date.now()}`;
-}
 
 /**
  * Check if order exists
