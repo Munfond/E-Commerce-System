@@ -12,7 +12,7 @@ exports.getCart = async (userId) => {
             product_variants:variant_id (
                 id,
                 name,
-                price,
+                sale_price,
                 stock,
                 image_url,
                 products:product_id (
@@ -25,7 +25,7 @@ exports.getCart = async (userId) => {
     
     // Tính tổng tiền
     const total = items.reduce((sum, item) => {
-        return sum + (item.product_variants?.price * item.quantity);
+        return sum + (item.product_variants?.sale_price * item.quantity);
     }, 0);
 
     return {
@@ -34,9 +34,9 @@ exports.getCart = async (userId) => {
             product_id: item.product_id,
             product_name: item.products?.name,
             image_url: item.products?.image_url,
-            price: item.product_variants?.price,
+            price: item.product_variants?.sale_price,
             quantity: item.quantity,
-            subtotal: item.product_variants?.price * item.quantity
+            subtotal: item.product_variants?.sale_price * item.quantity
         })),
         total,
         count: items.length

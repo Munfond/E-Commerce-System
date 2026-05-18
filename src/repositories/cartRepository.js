@@ -1,8 +1,8 @@
 const supabase = require('../config/supabase');
 
-const cartTable = () => supabase.from('carts');
-const cartItemsTable = () => supabase.from('cart_items');
-const productsTable = () => supabase.from('products');
+const cartTable = () => supabase.schema('private').from('carts');
+const cartItemsTable = () => supabase.schema('private').from('cart_items');
+const variantTable = () => supabase.from('product_variants');
 
 /**
  * Lấy hoặc tạo giỏ hàng cho user
@@ -16,7 +16,7 @@ exports.getOrCreateCart = async (userId) => {
     // Nếu chưa có cart, tạo mới
     if ((error && error.code === 'PGRST116') || !cart) {
         const { data: newCart, error: createError } = await cartTable()
-            .insert([{ user_id: userId, status: 'ACTIVE' }])
+            .insert([{ user_id: userId, created_at: new Date(), status: 'ACTIVE' }])
             .select()
             .single();
 
@@ -34,7 +34,8 @@ exports.getOrCreateCart = async (userId) => {
 exports.getCartItems = async (userId) => {
     const cart = await this.getOrCreateCart(userId);
 
-    const { data: items, error } = await cartItemsTable()
+    const { data: items, error } = await supabase
+        .from('cart_items_view')
         .select(`
             id,
             cart_id,
@@ -43,7 +44,7 @@ exports.getCartItems = async (userId) => {
             product_variants:variant_id (
                 id,
                 name,
-                price,
+                sale_price,
                 stock,
                 image_url,
                 products:product_id (
@@ -62,10 +63,8 @@ exports.getCartItems = async (userId) => {
 /**
  * Thêm sản phẩm vào giỏ hàng
  */
-exports.addToCart = async (userId, productId, quantity) => {
-    if (quantity < 1) throw new Error('Số lượng thêm phải lớn hơn 0');
-
-    // Không cần kiểm tra sản phẩm tồn tại, tại đã mua đâu, nó kiểu todo-list ấy
+exports.addToCart = async (userId, variantId, quantity) => {
+    // Không cần kiểm tra số lượng sản phẩm tồn tại, tại đã mua đâu, nó kiểu todo-list ấy
     const { data: variant, error: variantError } = await variantTable()
         .select('id, stock')
         .eq('id', variantId)
@@ -91,7 +90,14 @@ exports.addToCart = async (userId, productId, quantity) => {
 
     if (existingItem) {
         // Cập nhật số lượng
-        const newQuantity = existingItem.quantity + quantity;
+        const newQuantity = quantity;
+        if (newQuantity < 0) {
+            // Nếu số lượng mới < 1 thì xóa item khỏi giỏ
+            await cartItemsTable()
+                .delete()
+                .eq('id', existingItem.id);
+            return { success: true, message: 'Sản phẩm đã được xóa khỏi giỏ hàng do số lượng cập nhật nhỏ hơn 1' };
+        }
 
         /*
         if (variant.stock < newQuantity) {
