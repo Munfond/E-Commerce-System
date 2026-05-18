@@ -2,16 +2,76 @@ const supabase = require('../config/supabase');
 
 const orderTable = () => supabase.from('orders');
 const orderItemsTable = () => supabase.from('order_items');
-const orderHistoryTable = () => supabase.from('order_history');
 const productTable = () => supabase.from('products');
 const productVariantsTable = () => supabase.from('product_variants');
+const userAddressesTable = () => supabase.from('user_addresses');
+
+/** Columns that exist on public.orders (schema uses address_id, not shipping_address) */
+const ORDER_COLUMNS = [
+    'id', 'user_id', 'address_id', 'shop_id', 'total_amount', 'shipping_fee',
+    'voucher_code', 'payment_method', 'status', 'created_at'
+].join(', ');
+
+const ORDER_WITH_ADDRESS_SELECT = `
+    ${ORDER_COLUMNS},
+    user_addresses:address_id(
+        id, label, recipient_name, recipient_phone, city, ward, details, country
+    )
+`;
+
+/**
+ * Verify seller owns at least one product in the order
+ */
+async function verifySellerOrderAccess(orderId, sellerId) {
+    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
+    if (!shop) throw new Error('Seller chưa đăng ký shop');
+
+    const { data: orderItems, error: itemsError } = await orderItemsTable()
+        .select('variant_id, product_variants(product_id)')
+        .eq('order_id', orderId);
+
+    if (itemsError || !orderItems || orderItems.length === 0) {
+        throw new Error('Đơn hàng không tồn tại');
+    }
+
+    const productIds = orderItems
+        .map(item => item.product_variants?.product_id)
+        .filter(Boolean);
+
+    const { data: products, error: productsError } = await productTable()
+        .select('id')
+        .in('id', productIds)
+        .eq('shop_id', shop.id);
+
+    if (productsError || !products || products.length === 0) {
+        throw new Error('Không có quyền truy cập đơn hàng này');
+    }
+
+    return true;
+}
+
+/**
+ * Verify delivery address belongs to user
+ */
+exports.verifyUserAddress = async (userId, addressId) => {
+    const { data, error } = await userAddressesTable()
+        .select('id')
+        .eq('id', addressId)
+        .eq('user_id', userId)
+        .single();
+
+    if (error || !data) {
+        throw new Error('Địa chỉ giao hàng không tồn tại');
+    }
+    return data;
+};
 
 /**
  * Get customer's orders
  */
 exports.getCustomerOrders = async (userId, status = null) => {
     let query = orderTable()
-        .select('id, total_amount, status, created_at, payment_method, shipping_address')
+        .select(ORDER_WITH_ADDRESS_SELECT)
         .eq('user_id', userId);
 
     if (status) {
@@ -23,7 +83,11 @@ exports.getCustomerOrders = async (userId, status = null) => {
     const { data, error } = await query;
 
     if (error) throw error;
-    return data;
+
+    return (data || []).map(order => ({
+        ...order,
+        shipping_address: order.user_addresses || null
+    }));
 };
 
 /**
@@ -31,7 +95,7 @@ exports.getCustomerOrders = async (userId, status = null) => {
  */
 exports.getOrderById = async (orderId, userId) => {
     const { data: order, error: orderError } = await orderTable()
-        .select('*')
+        .select(ORDER_WITH_ADDRESS_SELECT)
         .eq('id', orderId)
         .eq('user_id', userId)
         .single();
@@ -39,25 +103,16 @@ exports.getOrderById = async (orderId, userId) => {
     if (orderError && orderError.code !== 'PGRST116') throw orderError;
     if (!order) throw new Error('Đơn hàng không tồn tại');
 
-    // Get order items
     const { data: items, error: itemsError } = await orderItemsTable()
         .select('*, product_variants(name, price, products(name))')
         .eq('order_id', orderId);
 
     if (itemsError) throw itemsError;
 
-    // Get order history
-    const { data: history, error: historyError } = await orderHistoryTable()
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: true });
-
-    if (historyError) throw historyError;
-
     return {
         ...order,
-        items,
-        history
+        shipping_address: order.user_addresses || null,
+        items
     };
 };
 
@@ -66,32 +121,23 @@ exports.getOrderById = async (orderId, userId) => {
  */
 exports.getOrderByIdAdmin = async (orderId) => {
     const { data: order, error: orderError } = await orderTable()
-        .select('*')
+        .select(ORDER_WITH_ADDRESS_SELECT)
         .eq('id', orderId)
         .single();
 
     if (orderError && orderError.code !== 'PGRST116') throw orderError;
     if (!order) throw new Error('Đơn hàng không tồn tại');
 
-    // Get order items
     const { data: items, error: itemsError } = await orderItemsTable()
         .select('*, product_variants(name, products(name, shop_id))')
         .eq('order_id', orderId);
 
     if (itemsError) throw itemsError;
 
-    // Get order history
-    const { data: history, error: historyError } = await orderHistoryTable()
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: true });
-
-    if (historyError) throw historyError;
-
     return {
         ...order,
-        items,
-        history
+        shipping_address: order.user_addresses || null,
+        items
     };
 };
 
@@ -99,86 +145,99 @@ exports.getOrderByIdAdmin = async (orderId) => {
  * Get seller's orders
  */
 exports.getSellerOrders = async (sellerId, status = null, dateRange = null) => {
-    // Get shop
     const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
     if (!shop) return [];
 
-    // Get products belonging to seller
     const { data: sellerProducts, error: productsError } = await productTable()
         .select('id')
         .eq('shop_id', shop.id);
 
     if (productsError || !sellerProducts || sellerProducts.length === 0) return [];
-    
+
     const productIds = sellerProducts.map(p => p.id);
 
     const { data: variants } = await productVariantsTable()
         .select('id')
         .in('product_id', productIds);
-        
+
     if (!variants || variants.length === 0) return [];
 
     const variantIds = variants.map(v => v.id);
 
-    // Get orders that contain seller's products
-    let query = orderItemsTable()
-        .select(`
-            order_id,
-            orders:order_id(
-                id,
-                user_id,
-                total_amount,
-                status,
-                created_at,
-                payment_method
-            )
-        `)
+    const { data: orderItems, error: orderItemsError } = await orderItemsTable()
+        .select('order_id')
         .in('variant_id', variantIds);
 
-    const { data, error } = await query;
+    if (orderItemsError) throw orderItemsError;
 
-    if (error) throw error;
+    const orderIds = [...new Set((orderItems || []).map(i => i.order_id).filter(Boolean))];
+    if (orderIds.length === 0) return [];
 
-    // Group by order_id and apply filters
-    const uniqueOrders = {};
-    if (data && data.length > 0) {
-        data.forEach(item => {
-            const orderId = item.order_id;
-            if (!uniqueOrders[orderId]) {
-                uniqueOrders[orderId] = item.orders;
-            }
-        });
-    }
+    let query = orderTable()
+        .select(ORDER_COLUMNS)
+        .in('id', orderIds)
+        .order('created_at', { ascending: false });
 
-    let orders = Object.values(uniqueOrders);
-
-    // Apply status filter
     if (status) {
-        orders = orders.filter(o => o.status === status);
+        query = query.eq('status', status);
     }
 
-    // Apply date range filter
     if (dateRange) {
         const [startDate, endDate] = dateRange;
-        orders = orders.filter(o => {
-            const orderDate = new Date(o.created_at);
-            return orderDate >= startDate && orderDate <= endDate;
-        });
+        query = query
+            .gte('created_at', startDate.toISOString())
+            .lte('created_at', endDate.toISOString());
     }
 
-    return orders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return data || [];
 };
 
 /**
  * Get admin's all orders
  */
 exports.getAdminOrders = async (status = null, shopId = null, limit = 10, offset = 0) => {
+    let orderIdsFilter = null;
+
+    if (shopId) {
+        const { data: shopProducts } = await productTable().select('id').eq('shop_id', shopId);
+        const productIds = shopProducts?.map(p => p.id) || [];
+
+        if (productIds.length === 0) {
+            return { data: [], count: 0 };
+        }
+
+        const { data: variants } = await productVariantsTable()
+            .select('id')
+            .in('product_id', productIds);
+
+        const variantIds = variants?.map(v => v.id) || [];
+        if (variantIds.length === 0) {
+            return { data: [], count: 0 };
+        }
+
+        const { data: orderItems } = await orderItemsTable()
+            .select('order_id')
+            .in('variant_id', variantIds);
+
+        orderIdsFilter = [...new Set(orderItems?.map(i => i.order_id) || [])];
+        if (orderIdsFilter.length === 0) {
+            return { data: [], count: 0 };
+        }
+    }
+
     let query = orderTable()
-        .select('id, user_id, total_amount, status, created_at, payment_method')
+        .select(ORDER_COLUMNS, { count: 'exact' })
         .order('created_at', { ascending: false });
 
     if (status) {
         query = query.eq('status', status);
+    }
+
+    if (orderIdsFilter) {
+        query = query.in('id', orderIdsFilter);
     }
 
     const { data, error, count } = await query.range(offset, offset + limit - 1);
@@ -190,29 +249,16 @@ exports.getAdminOrders = async (status = null, shopId = null, limit = 10, offset
 /**
  * Create new order from cart
  */
-exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) => {
-    // Create order
-    const { data: order, error: orderError } = await orderTable()
-        .insert({
-            user_id: userId,
-            total_amount: 0, // Will be calculated
-            status: 'PENDING',
-            payment_method: paymentMethod,
-            address_id: shippingAddress
-        })
-        .select()
-        .single();
+exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
+    await exports.verifyUserAddress(userId, addressId);
 
-    if (orderError) throw orderError;
-
-    // Create order items and calculate total
     let totalAmount = 0;
     const orderItemsData = [];
+    let shopId = null;
 
     for (const cartItem of cartItems) {
-        // Now cartItem uses variant_id instead of product_id
         const { data: variant, error: variantError } = await productVariantsTable()
-            .select('price, stock')
+            .select('price, stock, products(shop_id, status)')
             .eq('id', cartItem.variant_id)
             .single();
 
@@ -220,41 +266,62 @@ exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) 
             throw new Error(`Sản phẩm (Biến thể) ${cartItem.variant_id} không tồn tại`);
         }
 
+        if (variant.products?.status !== 'ACTIVE') {
+            throw new Error('Sản phẩm không còn khả dụng');
+        }
+
         if (variant.stock < cartItem.quantity) {
-            throw new Error(`Hết hàng: Số lượng tồn kho không đủ`);
+            throw new Error('Hết hàng: Số lượng tồn kho không đủ');
+        }
+
+        const itemShopId = variant.products?.shop_id;
+        if (!itemShopId) {
+            throw new Error('Sản phẩm không thuộc shop hợp lệ');
+        }
+
+        if (shopId === null) {
+            shopId = itemShopId;
+        } else if (shopId !== itemShopId) {
+            throw new Error('Giỏ hàng có sản phẩm từ nhiều shop. Vui lòng đặt từng shop một.');
         }
 
         const itemTotal = variant.price * cartItem.quantity;
         totalAmount += itemTotal;
 
         orderItemsData.push({
-            order_id: order.id,
             variant_id: cartItem.variant_id,
             quantity: cartItem.quantity,
             price_at_purchase: variant.price
         });
     }
 
-    // Insert order items
-    const { error: itemsError } = await orderItemsTable()
-        .insert(orderItemsData);
-
-    if (itemsError) throw itemsError;
-
-    // Update order total
-    const { error: updateError } = await orderTable()
-        .update({ total_amount: totalAmount })
-        .eq('id', order.id);
-
-    if (updateError) throw updateError;
-
-    // Add to order history
-    await orderHistoryTable()
+    const { data: order, error: orderError } = await orderTable()
         .insert({
-            order_id: order.id,
+            user_id: userId,
+            shop_id: shopId,
+            total_amount: totalAmount,
             status: 'PENDING',
-            message: 'Đơn hàng được tạo'
-        });
+            payment_method: paymentMethod,
+            address_id: addressId
+        })
+        .select()
+        .single();
+
+    if (orderError) throw orderError;
+
+    const itemsWithOrderId = orderItemsData.map(item => ({
+        ...item,
+        order_id: order.id
+    }));
+
+    const { error: itemsError } = await orderItemsTable().insert(itemsWithOrderId);
+
+    if (itemsError) {
+        await orderTable().delete().eq('id', order.id);
+        throw itemsError;
+    }
+
+    await exports.updateStockAfterOrder(order.id);
 
     return { id: order.id, total_amount: totalAmount };
 };
@@ -273,78 +340,42 @@ exports.cancelOrder = async (orderId, userId, reason) => {
         throw new Error('Đơn hàng không tồn tại');
     }
 
-    // Can only cancel pending or confirmed orders
     if (!['PENDING', 'CONFIRMED'].includes(order.status)) {
         throw new Error('Chỉ có thể hủy đơn chưa giao');
     }
 
-    // Update status
     const { error: updateError } = await orderTable()
         .update({ status: 'CANCELLED' })
         .eq('id', orderId);
 
     if (updateError) throw updateError;
 
-    // Add to history
-    await orderHistoryTable()
-        .insert({
-            order_id: orderId,
-            status: 'CANCELLED',
-            message: `Hủy đơn hàng: ${reason}`
-        });
+    await exports.restoreStockAfterCancel(orderId);
 
-    return { success: true };
+    return { success: true, reason: reason || null };
 };
 
 /**
  * Update order status (seller)
  */
 exports.updateOrderStatus = async (orderId, sellerId, newStatus) => {
-    const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
-    if (!shop) throw new Error('Seller chưa đăng ký shop');
+    await verifySellerOrderAccess(orderId, sellerId);
 
-    // Verify seller has products in this order
-    const { data: orderItems, error: itemsError } = await orderItemsTable()
-        .select('variant_id, product_variants(product_id)')
-        .eq('order_id', orderId);
-
-    if (itemsError || !orderItems || orderItems.length === 0) {
-        throw new Error('Đơn hàng không tồn tại');
-    }
-
-    const productIds = orderItems.map(item => item.product_variants.product_id);
-    
-    const { data: products, error: productsError } = await productTable()
-        .select('id')
-        .in('id', productIds)
-        .eq('shop_id', shop.id);
-
-    if (productsError || !products || products.length === 0) {
-        throw new Error('Không có quyền cập nhật đơn hàng này');
-    }
-
-    // Update order status
     const { error: updateError } = await orderTable()
         .update({ status: newStatus })
         .eq('id', orderId);
 
     if (updateError) throw updateError;
 
-    // Add to history
-    await orderHistoryTable()
-        .insert({
-            order_id: orderId,
-            status: newStatus,
-            message: `Cập nhật trạng thái: ${getStatusMessage(newStatus)}`
-        });
-
     return { success: true };
 };
 
 /**
- * Get order status
+ * Get order status (seller must own products in order)
  */
-exports.getOrderStatus = async (orderId) => {
+exports.getOrderStatus = async (orderId, sellerId) => {
+    await verifySellerOrderAccess(orderId, sellerId);
+
     const { data, error } = await orderTable()
         .select('status')
         .eq('id', orderId)
@@ -376,7 +407,7 @@ exports.createPaymentLink = async (orderId) => {
 };
 
 /**
- * Update stock after order confirmed
+ * Decrease stock after order created
  */
 exports.updateStockAfterOrder = async (orderId) => {
     const { data: items, error: itemsError } = await orderItemsTable()
@@ -400,19 +431,28 @@ exports.updateStockAfterOrder = async (orderId) => {
 };
 
 /**
- * Helper: Get status Vietnamese message
+ * Restore stock when order is cancelled
  */
-function getStatusMessage(status) {
-    const messages = {
-        'PENDING': 'Chờ xác nhận',
-        'CONFIRMED': 'Đã xác nhận',
-        'SHIPPED': 'Đang giao',
-        'DELIVERED': 'Đã giao',
-        'CANCELLED': 'Đã hủy',
-        'FAILED': 'Thất bại'
-    };
-    return messages[status] || status;
-}
+exports.restoreStockAfterCancel = async (orderId) => {
+    const { data: items, error: itemsError } = await orderItemsTable()
+        .select('variant_id, quantity')
+        .eq('order_id', orderId);
+
+    if (itemsError) throw itemsError;
+
+    for (const item of items) {
+        const { data: variant } = await productVariantsTable()
+            .select('stock')
+            .eq('id', item.variant_id)
+            .single();
+
+        if (variant) {
+            await productVariantsTable()
+                .update({ stock: variant.stock + item.quantity })
+                .eq('id', item.variant_id);
+        }
+    }
+};
 
 /**
  * Helper: Generate payment URL

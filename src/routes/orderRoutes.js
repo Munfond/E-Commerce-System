@@ -11,6 +11,10 @@ const { authenticateToken, authorizeAdmin, authorizeSeller } = require('../middl
 // Get customer's orders list
 router.get('/customer/orders', authenticateToken, orderController.getCustomerOrders);
 
+// GET /api/v1/customer/orders/:id/payment_link
+// Get payment link for order (must be before /:id)
+router.get('/customer/orders/:id/payment_link', authenticateToken, orderController.getPaymentLink);
+
 // GET /api/v1/customer/orders/:id
 // Get order details with tracking history
 router.get('/customer/orders/:id', authenticateToken, orderController.getOrderDetails);
@@ -22,10 +26,6 @@ router.patch('/customer/orders/:id', authenticateToken, orderController.cancelOr
 // POST /api/v1/customer/orders
 // Create new order (checkout)
 router.post('/customer/orders', authenticateToken, orderController.createOrder);
-
-// GET /api/v1/customer/orders/:id/payment_link
-// Get payment link for order
-router.get('/customer/orders/:id/payment_link', authenticateToken, orderController.getPaymentLink);
 
 // ============================================
 // SELLER ROUTES (Authentication + Seller role required)

@@ -71,12 +71,25 @@ exports.getShopInfo = async (req, res) => {
 };
 
 /**
- * PUT /sellers/shop
+ * PATCH /sellers/shops/me
  */
 exports.updateShop = async (req, res) => {
     try {
         const userId = req.user.id;
-        const updates = req.body;
+        const allowedFields = [
+            'shop_name', 'shop_description', 'shop_logo',
+            'legal_full_name', 'identity_number', 'tax_code'
+        ];
+        const updates = {};
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                updates[field] = req.body[field];
+            }
+        });
+
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ error: 'Không có thông tin nào để cập nhật' });
+        }
 
         const { data: shop, error } = await supabase.from('shops')
             .update(updates)
@@ -89,6 +102,90 @@ exports.updateShop = async (req, res) => {
             success: true,
             message: 'Cập nhật shop thành công',
             shop
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * PATCH /sellers/shops/me/status
+ * Update shop status
+ */
+exports.updateShopStatus = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { status } = req.body;
+
+        if (!status) {
+            return res.status(400).json({ error: 'Vui lòng cung cấp trạng thái shop' });
+        }
+
+        const validStatuses = ['OPEN', 'CLOSED', 'MAINTENANCE'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ error: 'Trạng thái không hợp lệ. Chỉ chấp nhận: OPEN, CLOSED, MAINTENANCE' });
+        }
+
+        const { data: shop, error } = await supabase.from('shops')
+            .update({ seller_control_status: status })
+            .eq('owner_id', userId)
+            .select()
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        if (!shop) return res.status(404).json({ error: 'Shop không tồn tại' });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Cập nhật trạng thái shop thành công',
+            shop
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * PATCH /sellers/shops/address
+ * Update shop address
+ */
+exports.updateShopAddress = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { receiver_name, receiver_phone, city, ward, details } = req.body;
+
+        if (!receiver_name || !receiver_phone || !city || !details) {
+            return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ thông tin địa chỉ' });
+        }
+
+        // Get shop ID
+        const { data: shop, error: shopError } = await supabase.from('shops')
+            .select('id')
+            .eq('owner_id', userId)
+            .single();
+
+        if (shopError && shopError.code !== 'PGRST116') throw shopError;
+        if (!shop) return res.status(404).json({ error: 'Shop không tồn tại' });
+
+        // Update or insert shop address
+        const { data: address, error: addressError } = await supabase.from('shop_addresses')
+            .upsert({
+                shop_id: shop.id,
+                receiver_name,
+                receiver_phone,
+                city,
+                ward,
+                details
+            }, { onConflict: 'shop_id' })
+            .select()
+            .single();
+
+        if (addressError) throw addressError;
+
+        return res.status(200).json({
+            success: true,
+            message: 'Cập nhật địa chỉ shop thành công',
+            address
         });
     } catch (err) {
         return res.status(500).json({ error: err.message });

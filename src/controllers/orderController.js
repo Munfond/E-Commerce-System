@@ -1,9 +1,18 @@
 const orderService = require('../services/orderService');
 
+function mapOrderErrorStatus(err, defaults = { notFound: 404, badRequest: 400, server: 500 }) {
+    const message = err.message || '';
+    if (message.includes('không tồn tại') || message.includes('Không có quyền')) {
+        return message.includes('Không có quyền') ? 403 : defaults.notFound;
+    }
+    if (message.includes('không thể') || message.includes('không hợp lệ') || message.includes('không được')) {
+        return defaults.badRequest;
+    }
+    return defaults.server;
+}
+
 /**
  * GET /customer/orders
- * Get customer's orders list
- * Query params: status
  */
 exports.getCustomerOrders = async (req, res) => {
     try {
@@ -19,7 +28,6 @@ exports.getCustomerOrders = async (req, res) => {
 
 /**
  * GET /customer/orders/:id
- * Get order details with tracking history
  */
 exports.getOrderDetails = async (req, res) => {
     try {
@@ -30,52 +38,63 @@ exports.getOrderDetails = async (req, res) => {
             return res.status(400).json({ error: 'Thiếu ID đơn hàng' });
         }
 
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(id)) {
+            return res.status(400).json({ error: 'ID đơn hàng không hợp lệ' });
+        }
+
         const order = await orderService.getOrderDetails(id, userId);
         return res.status(200).json(order);
     } catch (err) {
-        if (err.message.includes('không tồn tại')) {
-            return res.status(404).json({ error: err.message });
-        }
-        return res.status(500).json({ error: err.message });
+        return res.status(mapOrderErrorStatus(err)).json({ error: err.message });
     }
 };
 
 /**
  * PATCH /customer/orders/:id
- * Cancel order
  * Body: { reason }
  */
 exports.cancelOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        const { reason } = req.body;
         const userId = req.user.id;
+        const body = req.body || {};
+        const reason = body.reason;
 
         if (!id) {
             return res.status(400).json({ error: 'Thiếu ID đơn hàng' });
         }
 
+        if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+            return res.status(400).json({ error: 'Lý do hủy đơn không được để trống' });
+        }
+
         const result = await orderService.cancelOrder(id, userId, reason);
         return res.status(200).json(result);
     } catch (err) {
-        if (err.message.includes('không tồn tại') || err.message.includes('không thể')) {
-            return res.status(400).json({ error: err.message });
-        }
-        return res.status(500).json({ error: err.message });
+        return res.status(mapOrderErrorStatus(err, { notFound: 404, badRequest: 400, server: 500 })).json({ error: err.message });
     }
 };
 
 /**
  * GET /seller/orders
- * Get seller's orders list
- * Query params: status, date_range
  */
 exports.getSellerOrders = async (req, res) => {
     try {
         const { status, date_range } = req.query;
         const sellerId = req.user.id;
 
-        const orders = await orderService.getSellerOrders(sellerId, status, date_range);
+        let parsedDateRange = null;
+        if (date_range) {
+            const parts = typeof date_range === 'string'
+                ? date_range.split(',').map(d => d.trim())
+                : date_range;
+            if (Array.isArray(parts) && parts.length === 2) {
+                parsedDateRange = parts;
+            }
+        }
+
+        const orders = await orderService.getSellerOrders(sellerId, status, parsedDateRange);
         return res.status(200).json(orders);
     } catch (err) {
         return res.status(500).json({ error: err.message });
@@ -84,7 +103,6 @@ exports.getSellerOrders = async (req, res) => {
 
 /**
  * GET /seller/orders/:id/status
- * Get order status quickly
  */
 exports.getOrderStatus = async (req, res) => {
     try {
@@ -98,17 +116,12 @@ exports.getOrderStatus = async (req, res) => {
         const status = await orderService.getOrderStatus(id, sellerId);
         return res.status(200).json(status);
     } catch (err) {
-        if (err.message.includes('không tồn tại')) {
-            return res.status(404).json({ error: err.message });
-        }
-        return res.status(500).json({ error: err.message });
+        return res.status(mapOrderErrorStatus(err)).json({ error: err.message });
     }
 };
 
 /**
  * GET /admin/orders
- * Get all orders for admin
- * Query params: status, shop_id, page, limit
  */
 exports.getAdminOrders = async (req, res) => {
     try {
@@ -123,13 +136,13 @@ exports.getAdminOrders = async (req, res) => {
 
 /**
  * PATCH /seller/orders/:id/status
- * Update order status
  * Body: { status }
  */
 exports.updateOrderStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body;
+        const body = req.body || {};
+        const { status } = body;
         const sellerId = req.user.id;
 
         if (!id) {
@@ -143,40 +156,52 @@ exports.updateOrderStatus = async (req, res) => {
         const result = await orderService.updateOrderStatus(id, sellerId, status);
         return res.status(200).json(result);
     } catch (err) {
-        if (err.message.includes('Không có quyền')) {
-            return res.status(403).json({ error: err.message });
-        }
-        if (err.message.includes('không tồn tại')) {
-            return res.status(404).json({ error: err.message });
-        }
-        return res.status(400).json({ error: err.message });
+        return res.status(mapOrderErrorStatus(err)).json({ error: err.message });
     }
 };
 
 /**
  * POST /customer/orders
- * Create new order (checkout)
- * Body: { cart_items, payment_method, address_id }
+ * Body: { cart_items?, payment_method, address_id | shipping_address, use_cart? }
  */
 exports.createOrder = async (req, res) => {
     try {
-        const { cart_items, payment_method, address_id } = req.body;
+        const body = req.body || {};
+        const cart_items = body.cart_items;
+        const payment_method = body.payment_method;
+        const address_id = body.address_id || body.shipping_address;
+        const use_cart = body.use_cart === true || body.use_cart === 'true';
         const userId = req.user.id;
 
-        if (!cart_items || !payment_method || !address_id) {
-            return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
+        if (!payment_method) {
+            return res.status(400).json({ error: 'Thiếu phương thức thanh toán (payment_method)' });
         }
 
-        const result = await orderService.createOrder(userId, cart_items, payment_method, address_id);
+        if (!address_id) {
+            return res.status(400).json({ error: 'Thiếu địa chỉ giao hàng (address_id)' });
+        }
+
+        if (!use_cart && (!cart_items || !Array.isArray(cart_items) || cart_items.length === 0)) {
+            return res.status(400).json({
+                error: 'Thiếu cart_items hoặc đặt use_cart: true để checkout từ giỏ hàng'
+            });
+        }
+
+        const result = await orderService.createOrder(
+            userId,
+            cart_items,
+            payment_method,
+            address_id,
+            use_cart
+        );
         return res.status(201).json(result);
     } catch (err) {
-        return res.status(400).json({ error: err.message });
+        return res.status(mapOrderErrorStatus(err)).json({ error: err.message });
     }
 };
 
 /**
  * GET /customer/orders/:id/payment_link
- * Get payment link for order
  */
 exports.getPaymentLink = async (req, res) => {
     try {
@@ -190,9 +215,6 @@ exports.getPaymentLink = async (req, res) => {
         const result = await orderService.getPaymentLink(id, userId);
         return res.status(200).json(result);
     } catch (err) {
-        if (err.message.includes('không tồn tại')) {
-            return res.status(404).json({ error: err.message });
-        }
-        return res.status(400).json({ error: err.message });
+        return res.status(mapOrderErrorStatus(err)).json({ error: err.message });
     }
 };

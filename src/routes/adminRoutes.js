@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
+const orderController = require('../controllers/orderController');
 const { authenticateToken, authorizeAdmin } = require('../middlewares/authMiddleware');
 
 // All admin routes require authentication and admin role
@@ -17,5 +18,8 @@ router.patch('/shops/:id/verify', adminController.verifyShop);
 
 // PATCH /api/v1/admin/shops/:id/control
 router.patch('/shops/:id/control', adminController.controlShop);
+
+// GET /api/v1/admin/orders (alias — doc path is /api/v1/orders/admin/orders)
+router.get('/orders', orderController.getAdminOrders);
 
 module.exports = router;

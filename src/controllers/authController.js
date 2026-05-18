@@ -5,15 +5,15 @@ const userRepo = require('../repositories/userRepository');
 //Customer Register
 exports.register = async (req, res) => {
     try {
-        const { email, password, username, phone } = req.body;
+        const { email, password, username } = req.body;
 
         // Kiểm tra dữ liệu đầu vào cơ bản
-        const validationErrors = validateRegisterInput({ email, password, username, phone });
+        const validationErrors = validateRegisterInput({ email, password, username });
         if (validationErrors.length > 0) {
             return res.status(400).json({ error: validationErrors });
         }
         
-        const result = await authService.register(email, password, username, phone);
+        const result = await authService.register(email, password, username );
         res.status(200).json(result);
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -37,15 +37,15 @@ exports.verify = async (req, res) => {
 //Seller register và verify sẽ tương tự, chỉ khác ở chỗ type OTP sẽ là 'SELLER_REGISTER' và khi verify xong sẽ gán role 'seller' thay vì 'customer'.
 exports.sellerRegister = async (req, res) => {
     try {
-        const { email, password, username, phone } = req.body;
+        const { email, password, username,   } = req.body;
 
         // Kiểm tra dữ liệu đầu vào cơ bản
-        const validationErrors = validateRegisterInput({ email, password, username, phone });
+        const validationErrors = validateRegisterInput({ email, password, username,   });
         if (validationErrors.length > 0) {
             return res.status(400).json({ error: validationErrors });
         }
         
-        const result = await authService.registerSeller(email, password, username, phone);
+        const result = await authService.registerSeller(email, password, username,  );
         res.status(200).json(result);
     } catch (err) {
         res.status(400).json({ error: err.message });

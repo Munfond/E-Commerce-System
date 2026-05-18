@@ -28,6 +28,12 @@ exports.getProductDetails = async (req, res) => {
             return res.status(400).json({ error: 'Thiếu ID sản phẩm' });
         }
 
+        // Validate UUID format (basic check: should contain 4 hyphens or be valid UUID)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(id)) {
+            return res.status(400).json({ error: 'ID sản phẩm không hợp lệ' });
+        }
+
         const product = await productService.getProductDetails(id);
         return res.status(200).json(product);
     } catch (err) {
@@ -215,6 +221,33 @@ exports.getPendingProducts = async (req, res) => {
         return res.status(200).json(result);
     } catch (err) {
         return res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * PATCH /admin/products/:id
+ * Moderate product (approve: ACTIVE, reject: INACTIVE)
+ * Body: { status }
+ */
+exports.moderateProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!id) {
+            return res.status(400).json({ error: 'Thiếu ID sản phẩm' });
+        }
+        if (!status) {
+            return res.status(400).json({ error: 'Trạng thái không được để trống' });
+        }
+
+        const result = await productService.moderateProduct(id, status);
+        return res.status(200).json(result);
+    } catch (err) {
+        if (err.message.includes('không tồn tại')) {
+            return res.status(404).json({ error: err.message });
+        }
+        return res.status(400).json({ error: err.message });
     }
 };
 

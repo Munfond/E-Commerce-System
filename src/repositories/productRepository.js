@@ -3,13 +3,16 @@ const supabase = require('../config/supabase');
 const productTable = () => supabase.from('products');
 const reviewTable = () => supabase.from('product_reviews');
 const categoryTable = () => supabase.from('categories');
+const productVariantsTable = () => supabase.from('product_variants');
+const orderItemsTable = () => supabase.from('order_items');
+const orderTable = () => supabase.from('orders');
 
 /**
  * Search and filter products (public)
  */
 exports.searchProducts = async (searchQuery = '', categoryId = null, sortBy = 'name', limit = 10, offset = 0) => {
     let query = productTable()
-        .select('id, name, status, category_id, product_variants(price, stock), product_images(image_url)')
+        .select('id, name, status, category_id, product_images(image_url)', { count: 'exact' })
         .eq('status', 'ACTIVE');
 
     if (searchQuery) {
@@ -33,7 +36,58 @@ exports.searchProducts = async (searchQuery = '', categoryId = null, sortBy = 'n
     const { data, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) throw error;
-    return { data, count };
+
+    let results = data || [];
+
+    // Price sort requires variant data (price lives on product_variants)
+    if (results.length > 0 && (sortBy === 'price' || sortBy === '-price')) {
+        const productIds = results.map(p => p.id);
+        const { data: variants } = await productVariantsTable()
+            .select('product_id, price')
+            .in('product_id', productIds);
+
+        const minPriceByProduct = {};
+        if (variants) {
+            variants.forEach(v => {
+                const price = parseFloat(v.price) || 0;
+                if (minPriceByProduct[v.product_id] === undefined || price < minPriceByProduct[v.product_id]) {
+                    minPriceByProduct[v.product_id] = price;
+                }
+            });
+        }
+
+        const ascending = sortBy === 'price';
+        results = [...results].sort((a, b) => {
+            const priceA = minPriceByProduct[a.id] ?? 0;
+            const priceB = minPriceByProduct[b.id] ?? 0;
+            return ascending ? priceA - priceB : priceB - priceA;
+        });
+    }
+    
+    // Fetch variants with pricing separately to avoid schema issues
+    if (results.length > 0) {
+        const productIds = results.map(p => p.id);
+        const { data: variants } = await productVariantsTable()
+            .select('product_id, price, stock')
+            .in('product_id', productIds);
+        
+        // Attach variants to products
+        const variantsByProduct = {};
+        if (variants) {
+            variants.forEach(v => {
+                if (!variantsByProduct[v.product_id]) {
+                    variantsByProduct[v.product_id] = [];
+                }
+                variantsByProduct[v.product_id].push(v);
+            });
+        }
+        
+        results.forEach(product => {
+            product.product_variants = variantsByProduct[product.id] || [];
+        });
+    }
+    
+    return { data: results, count };
 };
 
 /**
@@ -103,21 +157,33 @@ exports.createProduct = async (sellerId, productData) => {
     const { data: shop } = await supabase.from('shops').select('id').eq('owner_id', sellerId).single();
     if (!shop) throw new Error('Seller chưa đăng ký shop');
 
-    const slug = name.toLowerCase().replace(/\s+/g, '-');
+    const baseSlug = name.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
+    let slug = baseSlug;
+    let data;
+    let error;
 
-    const { data, error } = await productTable()
-        .insert({
-            shop_id: shop.id,
-            name,
-            description,
-            category_id,
-            slug,
-            brand,
-            sold_count: 0,
-            status: 'PENDING'
-        })
-        .select('id, name')
-        .single();
+    for (let attempt = 0; attempt < 5; attempt++) {
+        ({ data, error } = await productTable()
+            .insert({
+                shop_id: shop.id,
+                name,
+                description,
+                category_id,
+                slug,
+                brand,
+                sold_count: 0,
+                status: 'PENDING'
+            })
+            .select('id, name')
+            .single());
+
+        if (!error) break;
+        if (error.code === '23505') {
+            slug = `${baseSlug}-${Date.now()}`;
+            continue;
+        }
+        throw error;
+    }
 
     if (error) throw error;
 
@@ -206,11 +272,31 @@ exports.deleteProduct = async (productId, sellerId) => {
     if (product.shop_id !== shop.id) throw new Error('Không có quyền xóa sản phẩm này');
 
     const { error } = await productTable()
-        .update({ status: 'HIDDEN' })
+        .update({ status: 'INACTIVE' })
         .eq('id', productId);
 
     if (error) throw error;
     return { success: true };
+};
+
+/**
+ * Moderate product status (admin)
+ */
+exports.moderateProduct = async (productId, status) => {
+    const validStatuses = ['ACTIVE', 'INACTIVE', 'PENDING'];
+    if (!validStatuses.includes(status)) {
+        throw new Error('Trạng thái không hợp lệ');
+    }
+
+    const { data, error } = await productTable()
+        .update({ status })
+        .eq('id', productId)
+        .select('id, name, status')
+        .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!data) throw new Error('Sản phẩm không tồn tại');
+    return data;
 };
 
 /**
@@ -329,7 +415,7 @@ exports.getSellerStatistics = async (sellerId, period = 'month') => {
  */
 exports.getPendingProducts = async (limit = 10, offset = 0) => {
     const { data, error, count } = await productTable()
-        .select('id, name, shop_id, created_at, status')
+        .select('id, name, shop_id, created_at, status', { count: 'exact' })
         .eq('status', 'PENDING')
         .order('created_at', { ascending: true })
         .range(offset, offset + limit - 1);
@@ -353,11 +439,55 @@ exports.productExists = async (id) => {
 
 /**
  * Create product review
+ * Note: Only users who have purchased the product can review it
+ * Reviews are tied to order_items (specific purchases)
  */
 exports.createReview = async (productId, userId, rating, comment, imageUrls = []) => {
+    // Get all variants of this product
+    const { data: variants } = await supabase
+        .from('product_variants')
+        .select('id')
+        .eq('product_id', productId);
+
+    if (!variants || variants.length === 0) {
+        throw new Error('Sản phẩm không tồn tại');
+    }
+
+    const variantIds = variants.map(v => v.id);
+
+    const { data: userOrders } = await orderTable()
+        .select('id')
+        .eq('user_id', userId)
+        .eq('status', 'DELIVERED');
+
+    const orderIds = userOrders?.map(o => o.id) || [];
+    if (orderIds.length === 0) {
+        throw new Error('Bạn chưa mua sản phẩm này (đơn phải đã giao)');
+    }
+
+    const { data: orderItems } = await orderItemsTable()
+        .select('id')
+        .in('order_id', orderIds)
+        .in('variant_id', variantIds);
+
+    if (!orderItems || orderItems.length === 0) {
+        throw new Error('Bạn chưa mua sản phẩm này');
+    }
+
+    const { data: reviewedItems } = await reviewTable()
+        .select('order_item_id')
+        .in('order_item_id', orderItems.map(i => i.id));
+
+    const reviewedIds = new Set(reviewedItems?.map(r => r.order_item_id) || []);
+    const orderItem = orderItems.find(i => !reviewedIds.has(i.id));
+
+    if (!orderItem) {
+        throw new Error('Sản phẩm này đã được review');
+    }
+
     const { data, error } = await reviewTable()
         .insert({
-            order_item_id: productId,
+            order_item_id: orderItem.id,
             user_id: userId,
             rating,
             comment,
@@ -374,14 +504,36 @@ exports.createReview = async (productId, userId, rating, comment, imageUrls = []
  * Get product reviews
  */
 exports.getProductReviews = async (productId, limit = 10, offset = 0) => {
+    const { data: variants, error: variantsError } = await productVariantsTable()
+        .select('id')
+        .eq('product_id', productId);
+
+    if (variantsError) throw variantsError;
+    if (!variants || variants.length === 0) {
+        return { data: [], count: 0 };
+    }
+
+    const variantIds = variants.map(v => v.id);
+
+    const { data: orderItems, error: orderItemsError } = await orderItemsTable()
+        .select('id')
+        .in('variant_id', variantIds);
+
+    if (orderItemsError) throw orderItemsError;
+    if (!orderItems || orderItems.length === 0) {
+        return { data: [], count: 0 };
+    }
+
+    const orderItemIds = orderItems.map(oi => oi.id);
+
     const { data, error, count } = await reviewTable()
-        .select('*')
-        .eq('order_item_id', productId)
-        .order('created_at', { ascending: false })
+        .select('*', { count: 'exact' })
+        .in('order_item_id', orderItemIds)
+        .order('id', { ascending: false })
         .range(offset, offset + limit - 1);
 
     if (error) throw error;
-    return { data, count };
+    return { data: data || [], count: count || 0 };
 };
 
 /**

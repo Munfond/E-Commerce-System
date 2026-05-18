@@ -5,19 +5,28 @@ exports.getCart = async (userId) => {
     
     // Tính tổng tiền
     const total = items.reduce((sum, item) => {
-        return sum + (item.price_at_time * item.quantity);
+        return sum + ((item.price_at_time || 0) * (item.quantity || 0));
     }, 0);
 
     return {
-        items: items.map(item => ({
-            id: item.id,
-            variant_id: item.variant_id,
-            product_name: item.product_variants?.products?.name,
-            variant_name: item.product_variants?.name,
-            price: item.price_at_time,
-            quantity: item.quantity,
-            subtotal: item.price_at_time * item.quantity
-        })),
+        items: items.map(item => {
+            // Handle Supabase relationship - product_variants returns object (single) or array
+            const variant = Array.isArray(item.product_variants) 
+                ? item.product_variants[0] 
+                : item.product_variants;
+            
+            const product = variant?.products ? (Array.isArray(variant.products) ? variant.products[0] : variant.products) : null;
+            
+            return {
+                id: item.id,
+                variant_id: item.variant_id,
+                product_name: product?.name || 'Unknown Product',
+                variant_name: variant?.name || 'Unknown Variant',
+                price: item.price_at_time || variant?.price || 0,
+                quantity: item.quantity || 0,
+                subtotal: (item.price_at_time || variant?.price || 0) * (item.quantity || 0)
+            };
+        }),
         total,
         count: items.length
     };

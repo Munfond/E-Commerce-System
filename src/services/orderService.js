@@ -98,14 +98,15 @@ exports.getAdminOrders = async (status = null, shopId = null, page = 1, limit = 
         }
 
         const { data, count } = await orderRepo.getAdminOrders(status, shopId, limit, offset);
+        const total = count ?? data?.length ?? 0;
 
         return {
             data,
             pagination: {
                 page,
                 limit,
-                total: count,
-                pages: Math.ceil(count / limit)
+                total,
+                pages: total > 0 ? Math.ceil(total / limit) : 0
             }
         };
     } catch (err) {
@@ -115,14 +116,10 @@ exports.getAdminOrders = async (status = null, shopId = null, page = 1, limit = 
 
 /**
  * Create new order (checkout)
+ * @param {boolean} useCart - load items from DB cart when cartItems empty
  */
-exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
+exports.createOrder = async (userId, cartItems, paymentMethod, addressId, useCart = false) => {
     try {
-        // Validate input
-        if (!Array.isArray(cartItems) || cartItems.length === 0) {
-            throw new Error('Giỏ hàng không thể trống');
-        }
-
         if (!paymentMethod || typeof paymentMethod !== 'string') {
             throw new Error('Phương thức thanh toán không hợp lệ');
         }
@@ -136,9 +133,21 @@ exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
             throw new Error('Địa chỉ giao hàng không được để trống');
         }
 
-        // Validate cart items
+        let items = Array.isArray(cartItems) ? cartItems : [];
+
+        if (useCart || items.length === 0) {
+            const cartItemsFromDb = await cartRepo.getCartItems(userId);
+            if (!cartItemsFromDb || cartItemsFromDb.length === 0) {
+                throw new Error('Giỏ hàng không thể trống');
+            }
+            items = cartItemsFromDb.map(item => ({
+                variant_id: item.variant_id,
+                quantity: item.quantity
+            }));
+        }
+
         const validatedItems = [];
-        for (const item of cartItems) {
+        for (const item of items) {
             if (!item.variant_id || !item.quantity) {
                 throw new Error('Dữ liệu sản phẩm trong giỏ không hợp lệ');
             }
@@ -147,11 +156,18 @@ exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
             }
             validatedItems.push({
                 variant_id: item.variant_id,
-                quantity: parseInt(item.quantity)
+                quantity: parseInt(item.quantity, 10)
             });
         }
 
         const result = await orderRepo.createOrder(userId, validatedItems, paymentMethod, addressId.trim());
+
+        try {
+            await cartRepo.clearCart(userId);
+        } catch {
+            // Order created successfully; cart clear is best-effort
+        }
+
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi tạo đơn hàng: ${err.message}`);
@@ -192,8 +208,7 @@ exports.getOrderStatus = async (orderId, sellerId) => {
             throw new Error('ID đơn hàng không được để trống');
         }
 
-        // Verify seller has products in this order
-        const result = await orderRepo.getOrderStatus(orderId);
+        const result = await orderRepo.getOrderStatus(orderId, sellerId);
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi lấy trạng thái đơn hàng: ${err.message}`);

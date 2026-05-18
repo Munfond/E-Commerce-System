@@ -35,8 +35,9 @@ exports.getProductsByCategory = async (categoryId, page = 1, limit = 10) => {
     const offset = (page - 1) * limit;
 
     const { data, error, count } = await productTable()
-        .select('id, name, price')
+        .select('id, name, product_variants(price)', { count: 'exact' })
         .eq('category_id', categoryId)
+        .eq('status', 'ACTIVE')
         .order('name', { ascending: true })
         .range(offset, offset + limit - 1);
 

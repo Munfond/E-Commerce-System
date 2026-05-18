@@ -25,14 +25,15 @@ exports.searchProducts = async (query = '', category = null, sort = 'name', page
         }
 
         const { data, count } = await productRepo.searchProducts(query, category, sort, limit, offset);
+        const total = count ?? data?.length ?? 0;
 
         return {
             data,
             pagination: {
                 page,
                 limit,
-                total: count,
-                pages: Math.ceil(count / limit)
+                total,
+                pages: total > 0 ? Math.ceil(total / limit) : 0
             }
         };
     } catch (err) {
@@ -57,8 +58,8 @@ exports.getProductDetails = async (id) => {
         // Get reviews
         const reviews = await productRepo.getProductReviews(id, 5);
 
-        // Get seller info
-        const seller = await productRepo.getSellerInfo(product.seller_id);
+        // Get seller info using shop_id
+        const seller = await productRepo.getSellerInfo(product.shop_id);
 
         return {
             ...product,
@@ -121,7 +122,7 @@ exports.createReview = async (productId, userId, rating, comment, images = []) =
  */
 exports.getSellerProducts = async (sellerId, status = null) => {
     try {
-        const validStatuses = ['PENDING', 'ACTIVE', 'INACTIVE', 'DELETED'];
+        const validStatuses = ['PENDING', 'ACTIVE', 'INACTIVE', 'HIDDEN', 'DELETED'];
         
         if (status && !validStatuses.includes(status)) {
             throw new Error('Trạng thái không hợp lệ');
@@ -234,6 +235,13 @@ exports.updateProduct = async (productId, sellerId, updates) => {
             validUpdates.brand = updates.brand;
         }
 
+        if (updates.stock_quantity !== undefined) {
+            if (isNaN(updates.stock_quantity) || updates.stock_quantity < 0) {
+                throw new Error('Số lượng tồn kho phải >= 0');
+            }
+            validUpdates.stock_quantity = parseInt(updates.stock_quantity);
+        }
+
         if (Object.keys(validUpdates).length === 0) {
             throw new Error('Không có thông tin nào để cập nhật');
         }
@@ -308,18 +316,38 @@ exports.getPendingProducts = async (page = 1, limit = 10) => {
         const offset = (page - 1) * limit;
 
         const { data, count } = await productRepo.getPendingProducts(limit, offset);
+        const total = count ?? data?.length ?? 0;
 
         return {
             data,
             pagination: {
                 page,
                 limit,
-                total: count,
-                pages: Math.ceil(count / limit)
+                total,
+                pages: total > 0 ? Math.ceil(total / limit) : 0
             }
         };
     } catch (err) {
         throw new Error(`Lỗi khi lấy danh sách chờ duyệt: ${err.message}`);
+    }
+};
+
+/**
+ * Admin moderate product status (approve/reject)
+ */
+exports.moderateProduct = async (productId, status) => {
+    try {
+        if (!productId) {
+            throw new Error('ID sản phẩm không được để trống');
+        }
+        if (!status) {
+            throw new Error('Trạng thái không được để trống');
+        }
+
+        const result = await productRepo.moderateProduct(productId, status);
+        return result;
+    } catch (err) {
+        throw new Error(`Lỗi khi duyệt sản phẩm: ${err.message}`);
     }
 };
 

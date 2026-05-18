@@ -10,7 +10,7 @@ exports.getShops = async (req, res) => {
 
         const { data: shops, error, count } = await supabase.from('shops')
             .select('id, shop_name, shop_logo, rating, business_type', { count: 'exact' })
-            .eq('admin_control_status', 'ACTIVE')
+            .in('admin_control_status', ['OK', 'ACTIVE'])
             .range(offset, offset + limit - 1);
 
         if (error) throw error;
