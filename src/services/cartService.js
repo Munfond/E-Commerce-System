@@ -2,10 +2,30 @@ const cartRepo = require('../repositories/cartRepository');
 
 exports.getCart = async (userId) => {
     const items = await cartRepo.getCartItems(userId);
+
+    /*
+    `
+            id,
+            cart_id,
+            variant_id,
+            quantity,
+            product_variants:variant_id (
+                id,
+                name,
+                sale_price,
+                stock,
+                image_url,
+                products:product_id (
+                    id,
+                    name,
+                    brand
+                )
+            )
+        ` */
     
     // Tính tổng tiền
     const total = items.reduce((sum, item) => {
-        return sum + (item.price_at_time * item.quantity);
+        return sum + (item.product_variants?.sale_price * item.quantity);
     }, 0);
 
     return {
@@ -14,9 +34,9 @@ exports.getCart = async (userId) => {
             product_id: item.product_id,
             product_name: item.products?.name,
             image_url: item.products?.image_url,
-            price: item.price_at_time,
+            price: item.product_variants?.sale_price,
             quantity: item.quantity,
-            subtotal: item.price_at_time * item.quantity
+            subtotal: item.product_variants?.sale_price * item.quantity
         })),
         total,
         count: items.length

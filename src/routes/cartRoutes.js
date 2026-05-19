@@ -9,8 +9,8 @@ router.use(authenticateToken);
 // GET /customer/cart - Lấy giỏ hàng
 router.get('/', cartController.getCart);
 
-// POST /customer/cart/:item_id - Thêm sản phẩm vào giỏ
-router.post('/:item_id', cartController.addItem);
+// POST /customer/cart/:variant_id - Thêm sản phẩm vào giỏ
+router.post('/:variant_id', cartController.addItem);
 
 // PUT /customer/cart/:item_id - Cập nhật số lượng
 router.put('/:item_id', cartController.updateQuantity);

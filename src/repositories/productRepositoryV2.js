@@ -1,9 +1,22 @@
 const supabase = require('../config/supabase');
+const sanitizeHtml = require('sanitize-html');
 
 const productTable = () => supabase.from('products');
 const productVariantTable = () => supabase.from('product_variants');
 const productImageTable = () => supabase.from('product_images');
 
+function cleanHtmlInput (input) {
+    return sanitizeHtml(input, {
+        allowedTags: [ 'b', 'i', 'em', 'strong', 'a', 'p', 'ul', 'ol', 'li', 'br', 'img' ],
+        allowedAttributes: {
+            'a': [ 'href', 'target' ],
+            'img': [ 'src', 'alt', 'width', 'height' ]
+        },
+        allowedIframeHostnames: [] // Chặn tuyệt đối nhúng iframe bậy bạ
+    });
+}
+
+const shopRepo = require('./shopRepository');
 const productRepoV2 = {
     async getProductById(productId) {
         //ra cả Product và Variants và Images
@@ -45,7 +58,7 @@ const productRepoV2 = {
     },
     async getVariantById(variantId) {
         const {data, error} = await productVariantTable()
-            .select('*')
+            .select('*, products(*)')
             .eq('id', variantId)
             .single();
         if (error) throw error;
@@ -53,7 +66,7 @@ const productRepoV2 = {
     },
     async getProductImageById (productId) {
         const {data, error} = await productImageTable()
-            .select('*')
+            .select('*, products(*)')
             .eq('id', productId)
             .single();
         if (error) throw error;
@@ -61,7 +74,7 @@ const productRepoV2 = {
     },
     async createProduct(productData) {
         const {data, error} = await productTable()
-            .insert(productData)
+            .insert({...productData, description: cleanHtmlInput(productData.description)})
             .select('*')
             .single();
         if (error) throw error;
@@ -82,10 +95,8 @@ const productRepoV2 = {
         return data;
     },
     async updateProduct(productId, updateData) {
-        console.log("ID sản phẩm:", productId);
-        console.log("Data gửi đi:", updateData);
         const {data, error} = await productTable()
-            .update(updateData)
+            .update({...updateData, description: cleanHtmlInput(updateData.description)})
             .eq('id', productId)
             .select('*')
             .single();
