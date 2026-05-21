@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { endpoints } from '../api/endpoints';
 import type { AuthState, AuthUser } from './authTypes';
 
-type LoginInput = { email: string; password: string; roleHint?: AuthRole };
+type LoginInput = { provider: string; email: string; password: string };
 
 type AuthContextValue = AuthState & {
   login: (input: LoginInput) => Promise<void>;
@@ -13,14 +13,6 @@ type AuthContextValue = AuthState & {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-function buildDemoUser(email: string, role: AuthRole): AuthUser {
-  return {
-    id: 'demo-user',
-    email,
-    role,
-  };
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -31,9 +23,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const token = getAccessToken();
-    const role = getRole() ?? 'user';
-    if (token) {
-      setState({ token, user: buildDemoUser('demo@shopviet.local', role), loading: false });
+    const role = getRole();
+    if (token && role) {
+      // Token exists but we don't have full user data yet
+      // This should be fetched from /auth/me endpoint
+      setState({ token, user: null, loading: false });
     } else {
       setState({ token: null, user: null, loading: false });
     }
@@ -43,17 +37,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return {
       ...state,
       async login(input: LoginInput) {
-        const nextRole = input.roleHint ?? (input.email.toLowerCase().includes('seller') ? 'seller' : 'user');
-        // Frontend-only now uses mock API when enabled. Later backend will implement these endpoints.
-        const res = await api.post<{ accessToken: string; role?: AuthRole }>(endpoints.auth.login, {
+        const res = await api.post<{ accessToken: string; user: AuthUser }>(endpoints.auth.login, {
+          provider: input.provider,
           email: input.email,
           password: input.password,
         }, { auth: false });
         const token = res.data.accessToken;
-        const role = res.data.role ?? nextRole;
+        const user = res.data.user;
         setAccessToken(token);
-        setRole(role);
-        setState({ token, user: buildDemoUser(input.email, role), loading: false });
+        setRole(user.role);
+        setState({ token, user, loading: false });
       },
       logout() {
         clearAccessToken();

@@ -65,6 +65,91 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
   if (pathname === endpoints.auth.login && method === 'POST') {
     return { status: 200, body: { accessToken: 'demo-token', role: 'seller' } };
   }
+  
+  if (pathname === endpoints.auth.register && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    
+    // Validate required fields
+    if (!payload?.email || !payload?.username || !payload?.password) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Thiếu thông tin bắt buộc',
+          details: {
+            fields: {
+              email: !payload?.email ? 'required' : undefined,
+              username: !payload?.username ? 'required' : undefined,
+              password: !payload?.password ? 'required' : undefined,
+            },
+          },
+        },
+      };
+    }
+    
+    // Check email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (typeof payload.email !== 'string' || !emailRegex.test(payload.email)) {
+      return {
+        status: 400,
+        body: {
+          code: 'INVALID_EMAIL',
+          message: 'Email không hợp lệ',
+        },
+      };
+    }
+    
+    // Simulate OTP sent
+    return {
+      status: 200,
+      body: {
+        message: 'Đăng ký thành công. Vui lòng kiểm tra email để xác thực.',
+        otpSent: true,
+      },
+    };
+  }
+  
+  if (pathname === endpoints.auth.verify && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    
+    // Validate OTP
+    if (!payload?.otpCode || !payload?.email) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Thiếu mã OTP hoặc email',
+        },
+      };
+    }
+    
+    // Mock OTP verification - accept "123456" as valid OTP
+    const isValidOtp = payload.otpCode === '123456';
+    
+    if (!isValidOtp) {
+      return {
+        status: 400,
+        body: {
+          code: 'INVALID_OTP',
+          message: 'Mã OTP không hợp lệ',
+        },
+      };
+    }
+    
+    // Return auth token and user info
+    return {
+      status: 200,
+      body: {
+        accessToken: 'demo-token-verified-' + Date.now(),
+        user: {
+          id: 'user-' + Date.now(),
+          email: payload.email,
+          role: 'user',
+        },
+      },
+    };
+  }
+  
   if (pathname === endpoints.auth.me && method === 'GET') {
     return { status: 200, body: { id: 'demo-user', email: 'demo@shopviet.local', role: 'seller' } };
   }

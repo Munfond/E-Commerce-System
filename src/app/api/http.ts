@@ -28,7 +28,9 @@ export type HttpResponse<T> = {
 };
 
 function buildUrl(baseUrl: string, path: string, query?: RequestOptions['query']) {
-  const url = new URL(path, baseUrl || window.location.origin);
+  const normalizedBase = baseUrl ? (baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`) : window.location.origin;
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+  const url = new URL(normalizedPath, normalizedBase);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v === undefined || v === null) continue;
