@@ -35,7 +35,7 @@ const productRepoV2 = {
         const from = (page - 1) * limit;
         const to = from + limit - 1;
         let query = productTable()
-            .select('*, product_images(file_path)', { count: 'exact' })
+            .select('name, brand, sold_count, category_id, product_images(file_path)', { count: 'exact' })
             .eq('shop_id', shopId)
             .eq('product_images.display_order', 0)
             .order('created_at', { ascending: false });

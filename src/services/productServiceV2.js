@@ -86,7 +86,17 @@ const ProductService = {
         }
 
         // 4. Chuẩn bị mảng dữ liệu để Bulk Insert vào Database
-        const variantTasks = variants.map(v => ({ ...v, product_id: productId }));
+        const variantTasks = variants.map(v => {
+            const shortName = product.name.toLowerCase()
+                .replace(/ /g, '-')
+                .replace(/[^\w-]+/g, '');
+
+            return { 
+                ...v, 
+                product_id: productId, 
+                sku: `${shortName}-${v.name.toLowerCase().replace(/ /g, '-')}-${Date.now()}` 
+            };
+        });
         const imageTasks = finalImages.map(img => ({ ...img, product_id: productId }));
 
         // Thực thi lưu xuống Database cùng một lúc
