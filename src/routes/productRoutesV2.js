@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken, authorizeSeller } = require('../middlewares/authMiddleware');
 const productControllerV2 = require('../controllers/productControllerV2');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.get("/:id", productControllerV2.getDetail);
 router.get("/shops/:shopId", productControllerV2.getShopProducts); 
@@ -18,7 +20,16 @@ router.post("/me/:id/images", authorizeSeller, productControllerV2.addImages);
 router.post("/me/:id/variants", authorizeSeller, productControllerV2.addVariants);
 router.put("/me/:id", authorizeSeller, productControllerV2.updateProduct);
 //router.patch("/me/:id", authorizeSeller, productControllerV2.update);
-router.post("/me", authorizeSeller, productControllerV2.create);
+//router.post("/me", authorizeSeller, productControllerV2.create);
+router.post("/me", authorizeSeller, upload.fields([
+    { name: 'variant_files', maxCount: 20 },
+    { name: 'product_images', maxCount: 20 }
+]), productControllerV2.create);
+
+router.put("/me/:id/sync", authorizeSeller, upload.fields([
+    { name: 'variant_files', maxCount: 20 },
+    { name: 'product_images', maxCount: 20 }
+]), productControllerV2.update);
 
 module.exports = router;
 

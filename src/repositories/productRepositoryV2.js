@@ -7,10 +7,13 @@ const productImageTable = () => supabase.from('product_images');
 
 function cleanHtmlInput (input) {
     return sanitizeHtml(input, {
-        allowedTags: [ 'b', 'i', 'em', 'strong', 'a', 'p', 'ul', 'ol', 'li', 'br', 'img' ],
+        allowedTags: [ 'b', 'i', 'em', 'strong', 'a', 'p', 'ul', 'ol', 'li', 'br', 'img', 'table', 'tbody', 'tr', 'td', 'th' ],
         allowedAttributes: {
             'a': [ 'href', 'target' ],
-            'img': [ 'src', 'alt', 'width', 'height' ]
+            'img': [ 'src', 'alt', 'width', 'height' ],
+            'div': [ 'class' ],
+            'table': [ 'class' ],
+            'td': [ 'class' ]
         },
         allowedIframeHostnames: [] // Chặn tuyệt đối nhúng iframe bậy bạ
     });
