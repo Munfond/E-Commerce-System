@@ -14,7 +14,7 @@ exports.getCart = async (userId) => {
                 name,
                 sale_price,
                 stock,
-                image_url,
+                file_path,
                 products:product_id (
                     id,
                     name,
@@ -33,7 +33,7 @@ exports.getCart = async (userId) => {
             id: item.id,
             product_id: item.product_id,
             product_name: item.products?.name,
-            image_url: item.products?.image_url,
+            file_path: item.products?.file_path,
             price: item.product_variants?.sale_price,
             quantity: item.quantity,
             subtotal: item.product_variants?.sale_price * item.quantity

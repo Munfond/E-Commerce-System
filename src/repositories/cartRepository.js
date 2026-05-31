@@ -46,7 +46,7 @@ exports.getCartItems = async (userId) => {
                 name,
                 sale_price,
                 stock,
-                image_url,
+                file_path,
                 products:product_id (
                     id,
                     name,
