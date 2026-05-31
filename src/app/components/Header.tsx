@@ -1,10 +1,19 @@
-import { ShoppingBag, ShoppingCart, Search, Bell } from 'lucide-react';
-import { Link } from 'react-router';
+import { ShoppingBag, ShoppingCart, Search, Bell, User, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { useCart } from '../contexts/cart';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function Header({ cartCount }: { cartCount?: number }) {
+  const auth = useAuth();
+  const navigate = useNavigate();
   const cart = cartCount ?? useCart()?.cartCount ?? 0;
+  const userName = auth.user?.username ?? auth.user?.email ?? null;
+
+  const handleLogout = () => {
+    auth.logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <header className="bg-gradient-to-r from-orange-600 to-orange-500 sticky top-0 z-50 shadow-md">
@@ -25,12 +34,29 @@ export default function Header({ cartCount }: { cartCount?: number }) {
           <div className="flex items-center gap-4">
             <Bell className="size-4" />
             <span>Thông báo</span>
-            <Link to="/login" className="border-l border-orange-400 pl-4 hover:text-orange-100">
-              Đăng nhập
-            </Link>
-            <Link to="/register" className="hover:text-orange-100">
-              Đăng ký
-            </Link>
+            {userName ? (
+              <>
+                <Link to="/profile" className="border-l border-orange-400 pl-4 hover:text-orange-100">
+                  <User className="size-4 inline-block" /> {userName}
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="border-l border-orange-400 pl-4 hover:text-orange-100 flex items-center gap-2"
+                >
+                  <LogOut className="size-4" />
+                  Đăng xuất
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="border-l border-orange-400 pl-4 hover:text-orange-100">
+                  Đăng nhập
+                </Link>
+                <Link to="/register" className="hover:text-orange-100">
+                  Đăng ký
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

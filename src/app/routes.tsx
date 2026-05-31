@@ -15,6 +15,8 @@ import SellerInventory from "./pages/SellerInventory";
 import SellerProfile from "./pages/SellerProfile";
 import AddProduct from "./pages/AddProduct";
 import SellerGuard from "./auth/SellerGuard";
+import UserGuard from "./auth/UserGuard";
+import UserProfile from "./pages/UserProfile";
 import SellerOnboardingLayout from "./seller/onboarding/SellerOnboardingLayout";
 import SellerOnboardingIndex from "./pages/SellerOnboardingIndex";
 import SellerOnboardingShop from "./pages/SellerOnboardingShop";
@@ -48,21 +50,32 @@ export const router = createBrowserRouter([
               { path: "profile", Component: SellerProfile },
               { path: "orders", Component: SellerOrders },
               { path: "inventory", Component: SellerInventory },
-              {
-                path: "register",
-                Component: SellerOnboardingLayout,
-                children: [
-                  { index: true, Component: SellerOnboardingIndex },
-                  { path: "shop", Component: SellerOnboardingShop },
-                  { path: "shipping", Component: SellerOnboardingShipping },
-                  { path: "identity", Component: SellerOnboardingIdentity },
-                  { path: "tax", Component: SellerOnboardingTax },
-                  { path: "done", Component: SellerOnboardingDone },
-                ],
-              },
             ],
           }
         ],
+      },
+      {
+        path: "seller/register",
+        Component: UserGuard,
+        children: [
+          {
+            path: "",
+            Component: SellerOnboardingLayout,
+            children: [
+              { index: true, Component: SellerOnboardingIndex },
+              { path: "shop", Component: SellerOnboardingShop },
+              { path: "shipping", Component: SellerOnboardingShipping },
+              { path: "identity", Component: SellerOnboardingIdentity },
+              { path: "tax", Component: SellerOnboardingTax },
+              { path: "done", Component: SellerOnboardingDone },
+            ],
+          },
+        ],
+      },
+      {
+        path: "profile",
+        Component: UserGuard,
+        children: [{ index: true, Component: UserProfile }],
       },
       { path: "*", Component: NotFound },
     ],

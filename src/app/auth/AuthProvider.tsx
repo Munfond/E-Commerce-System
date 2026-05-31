@@ -4,12 +4,19 @@ import { api } from '../api/client';
 import { endpoints } from '../api/endpoints';
 import type { AuthState, AuthUser } from './authTypes';
 
-type LoginInput = { provider: string; email: string; password: string };
+type LoginInput = { email: string; password: string };
+type RawAuthUser = {
+  id?: string;
+  username?: string;
+  email: string;
+  roles: string[];
+};
 
 type AuthContextValue = AuthState & {
-  login: (input: LoginInput) => Promise<void>;
+  login: (input: LoginInput) => Promise<AuthUser>;
   logout: () => void;
   setUserRole: (role: AuthRole) => void;
+  setSession: (token: string, user: AuthUser) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -24,29 +31,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getAccessToken();
     const role = getRole();
-    if (token && role) {
-      // Token exists but we don't have full user data yet
-      // This should be fetched from /auth/me endpoint
-      setState({ token, user: null, loading: false });
-    } else {
+
+    if (!token || !role) {
       setState({ token: null, user: null, loading: false });
+      return;
     }
+
+    let isMounted = true;
+    setState({ token, user: null, loading: true });
+
+    api
+      .get<AuthUser>(endpoints.auth.me, { auth: true })
+      .then((res) => {
+        if (!isMounted) return;
+        setState({ token, user: res.data, loading: false });
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        clearAccessToken();
+        clearRole();
+        setState({ token: null, user: null, loading: false });
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(() => {
     return {
       ...state,
       async login(input: LoginInput) {
-        const res = await api.post<{ accessToken: string; user: AuthUser }>(endpoints.auth.login, {
-          provider: input.provider,
-          email: input.email,
-          password: input.password,
-        }, { auth: false });
-        const token = res.data.accessToken;
-        const user = res.data.user;
+        const res = await api.post<{ message: string; data: { accessToken: string; user: RawAuthUser } }>(
+          endpoints.auth.login,
+          {
+            email: input.email,
+            password: input.password,
+          },
+          { auth: false }
+        );
+        const token = res.data.data.accessToken;
+        const rawUser = res.data.data.user;
+        const role = rawUser.roles.includes('customer')
+          ? 'user'
+          : rawUser.roles.includes('seller')
+          ? 'seller'
+          : rawUser.roles.includes('admin')
+          ? 'admin'
+          : 'user';
+        const user: AuthUser = {
+          id: rawUser.id ?? '',
+          username: rawUser.username,
+          email: rawUser.email,
+          role,
+          roles: rawUser.roles.filter((r): r is AuthRole => r === 'user' || r === 'seller' || r === 'admin'),
+        };
         setAccessToken(token);
         setRole(user.role);
         setState({ token, user, loading: false });
+        return user;
       },
       logout() {
         clearAccessToken();
@@ -56,6 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserRole(role: AuthRole) {
         setRole(role);
         setState((prev) => (prev.user ? { ...prev, user: { ...prev.user, role } } : prev));
+      },
+      setSession(token: string, user: AuthUser) {
+        setAccessToken(token);
+        setRole(user.role);
+        setState({ token, user, loading: false });
       },
     };
   }, [state]);

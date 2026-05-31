@@ -4,7 +4,7 @@ import { Mail, Lock, ShoppingBag, Eye, EyeOff, User } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { api } from '../api/client';
 import { endpoints } from '../api/endpoints';
-import { setAccessToken, setRole } from '../api/authStorage';
+import { useAuth } from '../auth/AuthProvider';
 import type { AuthUser } from '../auth/authTypes';
 
 export default function Register() {
@@ -57,6 +57,8 @@ export default function Register() {
     }
   };
 
+  const auth = useAuth();
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -81,13 +83,11 @@ export default function Register() {
 
       const token = res.data.accessToken;
       const user = res.data.user;
-      
-      setAccessToken(token);
-      setRole(user.role);
+      auth.setSession(token, user);
       setServerMessage('Xác thực OTP thành công. Đang chuyển hướng...');
-      
+
       setTimeout(() => {
-        navigate('/seller', { replace: true });
+        navigate('/profile', { replace: true });
       }, 1000);
     } catch (err: unknown) {
       setError(

@@ -5,7 +5,6 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthProvider';
 
 export default function Login() {
-  const [provider, setProvider] = useState('local');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,9 +20,10 @@ export default function Login() {
     setError(null);
     try {
       await new Promise((resolve) => setTimeout(resolve, 600));
-      await auth.login({ provider, email, password });
-      const next = new URLSearchParams(location.search).get('next') || '/';
-      navigate(next, { replace: true });
+      const user = await auth.login({ email, password });
+      const next = new URLSearchParams(location.search).get('next');
+      const target = next ?? '/profile';
+      navigate(target, { replace: true });
     } catch {
       setError('Đăng nhập thất bại, vui lòng thử lại.');
     } finally {
@@ -58,21 +58,6 @@ export default function Login() {
                 {error}
               </div>
             )}
-            <div>
-              <label htmlFor="provider" className="block text-sm font-medium text-slate-700 mb-2">
-                Loại tài khoản
-              </label>
-              <select
-                id="provider"
-                value={provider}
-                onChange={(e) => setProvider(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white"
-              >
-                <option value="local">Tài khoản cục bộ</option>
-                <option value="google">Google</option>
-                <option value="facebook">Facebook</option>
-              </select>
-            </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
                 Email

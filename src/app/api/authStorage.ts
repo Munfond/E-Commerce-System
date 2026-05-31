@@ -2,6 +2,7 @@ const ACCESS_TOKEN_KEY = 'shopviet.accessToken';
 const ROLE_KEY = 'shopviet.role';
 
 export type AuthRole = 'user' | 'seller' | 'admin';
+export type RawAuthRole = AuthRole | 'customer';
 
 export function getAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
