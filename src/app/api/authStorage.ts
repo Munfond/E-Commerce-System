@@ -1,4 +1,5 @@
 const ACCESS_TOKEN_KEY = 'shopviet.accessToken';
+const REFRESH_TOKEN_KEY = 'shopviet.refreshToken';
 const ROLE_KEY = 'shopviet.role';
 
 export type AuthRole = 'user' | 'seller' | 'admin';
@@ -15,6 +16,19 @@ export function setAccessToken(token: string) {
 
 export function clearAccessToken() {
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setRefreshToken(token: string) {
+  window.localStorage.setItem(REFRESH_TOKEN_KEY, token);
+}
+
+export function clearRefreshToken() {
+  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 export function getRole(): AuthRole | null {

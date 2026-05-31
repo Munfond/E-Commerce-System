@@ -63,7 +63,54 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
 
   // auth endpoints (mock)
   if (pathname === endpoints.auth.login && method === 'POST') {
-    return { status: 200, body: { accessToken: 'demo-token', role: 'seller' } };
+    const payload = options?.body as Record<string, unknown> | undefined;
+    if (!payload?.email || !payload?.password) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Email và mật khẩu là bắt buộc',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        message: 'Đăng nhập thành công',
+        data: {
+          accessToken: 'demo-token',
+          refreshToken: 'demo-refresh-token',
+          user: {
+            id: 'demo-user',
+            username: 'Demo User',
+            email: payload.email,
+            roles: ['customer'],
+          },
+        },
+      },
+    };
+  }
+  
+  if (pathname === endpoints.auth.refresh && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    if (!payload?.refreshToken || typeof payload.refreshToken !== 'string') {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Refresh token là bắt buộc',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        accessToken: 'demo-token-refreshed',
+        expiresIn: 3600,
+      },
+    };
   }
   
   if (pathname === endpoints.auth.register && method === 'POST') {
@@ -208,6 +255,18 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     }
     sellerProfile = payload;
     return { status: 200, body: { ok: true } };
+  }
+
+  // customer endpoints
+  if (pathname === endpoints.customer.cart && method === 'GET') {
+    return {
+      status: 200,
+      body: {
+        cart: {
+          items: [],
+        },
+      },
+    };
   }
 
   return null;

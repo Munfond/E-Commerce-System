@@ -6,12 +6,34 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useCart } from '../contexts/cart';
+import { api } from '../api/client';
+import { endpoints } from '../api/endpoints';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function Cart() {
   const { items: cartItems, updateQuantity, removeFromCart } = useCart();
+  const auth = useAuth();
   const [promoCode, setPromoCode] = useState('');
   const [selectAll, setSelectAll] = useState(true);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [isLoadingCart, setIsLoadingCart] = useState(false);
+
+  useEffect(() => {
+    if (auth.user) {
+      setIsLoadingCart(true);
+      api
+        .get<{ cart: { items: unknown[] } }>(endpoints.customer.cart)
+        .then(() => {
+          // Successfully fetched cart, items are already in local cart context
+        })
+        .catch(() => {
+          // Ignore errors, use local cart as fallback
+        })
+        .finally(() => {
+          setIsLoadingCart(false);
+        });
+    }
+  }, [auth.user]);
 
   useEffect(() => {
     setSelectedItems(cartItems.map((item) => item.product.id));

@@ -72,7 +72,12 @@ export default function Register() {
     }
 
     try {
-      const res = await api.post<{ accessToken: string; user: AuthUser }>(
+      const res = await api.post<{
+        accessToken?: string;
+        refreshToken?: string;
+        user?: AuthUser;
+        message?: string;
+      }>(
         endpoints.auth.verify,
         {
           email: formData.email,
@@ -81,14 +86,27 @@ export default function Register() {
         { auth: false }
       );
 
-      const token = res.data.accessToken;
-      const user = res.data.user;
-      auth.setSession(token, user);
-      setServerMessage('Xác thực OTP thành công. Đang chuyển hướng...');
+      const successMessage = res.data.message;
 
-      setTimeout(() => {
-        navigate('/profile', { replace: true });
-      }, 1000);
+      if (successMessage?.includes('kích hoạt thành công')) {
+        setServerMessage(successMessage);
+        setStage('done');
+        return;
+      }
+
+      const refreshToken = (res.data as { refreshToken?: string }).refreshToken;
+      if (res.data.accessToken && res.data.user) {
+        auth.setSession(res.data.accessToken, res.data.user, refreshToken);
+        setServerMessage('Xác thực OTP thành công. Đang chuyển hướng...');
+
+        setTimeout(() => {
+          navigate('/profile', { replace: true });
+        }, 1000);
+        return;
+      }
+
+      setServerMessage(successMessage || 'Xác thực OTP thành công. Vui lòng đăng nhập.');
+      setStage('done');
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : 'Lỗi xác thực OTP. Vui lòng thử lại.'

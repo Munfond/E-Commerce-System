@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Product } from '../data/products';
+import { getCartFromServer, replaceCartOnServer, ServerCartItemDto } from '../api/cartApi';
+import { getAccessToken } from '../api/authStorage';
 
 export type CartItem = {
   product: Product;
@@ -31,8 +33,10 @@ function normalizeCart(items: CartItem[]): CartItem[] {
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const isAuthenticated = Boolean(getAccessToken());
 
   useEffect(() => {
+    // Always load local copy first for offline/guest experience
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -42,10 +46,61 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setItems([]);
     }
+
+    // If user is authenticated, try to fetch server-side cart and prefer it when available
+    if (isAuthenticated) {
+      (async () => {
+        try {
+          const serverItems = await getCartFromServer();
+          if (Array.isArray(serverItems) && serverItems.length > 0) {
+            const mapped: CartItem[] = serverItems
+              .map((si) => {
+                // server may return full product snapshot or only productId; prefer product object when present
+                if (si.product && typeof si.product === 'object') {
+                  return {
+                    product: si.product as Product,
+                    quantity: Math.max(1, Math.round(si.quantity)),
+                    selectedColor: si.selectedColor ?? '',
+                    selectedStorage: si.selectedStorage ?? '',
+                  } as CartItem;
+                }
+                return null;
+              })
+              .filter(Boolean) as CartItem[];
+
+            if (mapped.length > 0) {
+              setItems(normalizeCart(mapped));
+            }
+          }
+        } catch (e) {
+          // ignore server errors and keep local cart
+          // console.error('Failed to load server cart', e);
+        }
+      })();
+    }
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+
+    // If authenticated, sync changes up to server (debounced)
+    if (!isAuthenticated) return;
+
+    const payload: ServerCartItemDto[] = items.map((it) => ({
+      product: it.product,
+      productId: (it.product as any)?.id,
+      quantity: it.quantity,
+      selectedColor: it.selectedColor,
+      selectedStorage: it.selectedStorage,
+    }));
+
+    const t = window.setTimeout(() => {
+      replaceCartOnServer(payload).catch(() => {
+        // swallow errors; optional: show toast
+      });
+    }, 700);
+
+    return () => window.clearTimeout(t);
   }, [items]);
 
   const cartCount = useMemo(

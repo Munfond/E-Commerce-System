@@ -1,21 +1,126 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, ShoppingBag, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router';
+import { Mail, ShoppingBag, ArrowLeft, Lock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router';
+import { api } from '../api/client';
+import { endpoints } from '../api/endpoints';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [stage, setStage] = useState<'request' | 'verify' | 'reset' | 'done'>('request');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSent, setIsSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [serverMessage, setServerMessage] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
+    setServerMessage(null);
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const res = await api.post<{ message: string }>(
+        endpoints.auth.passwordReset.request,
+        { email },
+        { auth: false }
+      );
 
-    setIsLoading(false);
-    setIsSent(true);
+      setServerMessage(res.data.message || 'OTP đã được gửi đến email của bạn.');
+      setStage('verify');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Lỗi gửi yêu cầu. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setServerMessage(null);
+
+    if (!otpCode.trim()) {
+      setError('Vui lòng nhập mã OTP.');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const res = await api.post<{ success: boolean }>(
+        endpoints.auth.passwordReset.verify,
+        {
+          email,
+          otpCode: otpCode.trim(),
+        },
+        { auth: false }
+      );
+
+      if (res.data.success) {
+        setServerMessage('OTP hợp lệ. Vui lòng đặt lại mật khẩu mới.');
+        setStage('reset');
+      } else {
+        setError('Xác thực OTP thất bại. Vui lòng thử lại.');
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Lỗi xác thực OTP. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setServerMessage(null);
+
+    if (newPassword !== confirmPassword) {
+      setError('Mật khẩu mới và xác nhận mật khẩu không khớp.');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      setError('Vui lòng nhập mật khẩu mới.');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const res = await api.post<{ success: boolean }>(
+        endpoints.auth.passwordReset.reset,
+        {
+          email,
+          newPassword,
+        },
+        { auth: false }
+      );
+
+      if (res.data.success) {
+        setServerMessage('Mật khẩu của bạn đã được đặt lại thành công.');
+        setStage('done');
+      } else {
+        setError('Đặt lại mật khẩu thất bại. Vui lòng thử lại.');
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Lỗi đặt lại mật khẩu. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBackToRequest = () => {
+    setStage('request');
+    setOtpCode('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setError(null);
+    setServerMessage(null);
   };
 
   return (
@@ -37,7 +142,7 @@ export default function ForgotPassword() {
         </Link>
 
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          {!isSent ? (
+          {stage !== 'done' ? (
             <>
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-900 mb-2">
@@ -45,16 +150,24 @@ export default function ForgotPassword() {
                 </h2>
 
                 <p className="text-slate-600">
-                  Nhập email của bạn để nhận link đặt lại mật khẩu
+                  {stage === 'request' && 'Nhập email của bạn để nhận OTP xác thực.'}
+                  {stage === 'verify' && 'Nhập mã OTP đã được gửi đến email của bạn.'}
+                  {stage === 'reset' && 'Nhập mật khẩu mới để hoàn tất đặt lại mật khẩu.'}
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form
+                onSubmit={
+                  stage === 'request'
+                    ? handleRequest
+                    : stage === 'verify'
+                    ? handleVerify
+                    : handleReset
+                }
+                className="space-y-5"
+              >
                 <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-slate-700 mb-2"
-                  >
+                  <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
                     Email
                   </label>
 
@@ -68,10 +181,68 @@ export default function ForgotPassword() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="example@email.com"
                       required
-                      className="w-full pl-11 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                      disabled={stage !== 'request'}
+                      className="w-full pl-11 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all disabled:bg-slate-100 disabled:text-slate-500"
                     />
                   </div>
                 </div>
+
+                {stage === 'verify' && (
+                  <div>
+                    <label htmlFor="otp" className="block text-sm font-medium text-slate-700 mb-2">
+                      Mã OTP
+                    </label>
+                    <input
+                      id="otp"
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Nhập mã OTP"
+                      required
+                      className="w-full pl-4 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                    />
+                  </div>
+                )}
+
+                {stage === 'reset' && (
+                  <>
+                    <div>
+                      <label htmlFor="newPassword" className="block text-sm font-medium text-slate-700 mb-2">
+                        Mật khẩu mới
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-slate-400" />
+                        <input
+                          id="newPassword"
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                          required
+                          className="w-full pl-11 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-2">
+                        Xác nhận mật khẩu
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-slate-400" />
+                        <input
+                          id="confirmPassword"
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          required
+                          className="w-full pl-11 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <motion.button
                   type="submit"
@@ -80,54 +251,44 @@ export default function ForgotPassword() {
                   whileTap={{ scale: 0.99 }}
                   className="w-full bg-orange-600 text-white py-3 rounded-lg font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isLoading ? 'Đang gửi...' : 'Gửi link đặt lại mật khẩu'}
+                  {stage === 'request' && (isLoading ? 'Đang gửi...' : 'Gửi OTP')}
+                  {stage === 'verify' && (isLoading ? 'Đang xác thực...' : 'Xác thực OTP')}
+                  {stage === 'reset' && (isLoading ? 'Đang đặt lại...' : 'Đặt lại mật khẩu')}
                 </motion.button>
+
+                {(stage === 'verify' || stage === 'reset') && (
+                  <button
+                    type="button"
+                    onClick={handleBackToRequest}
+                    className="w-full bg-slate-100 text-slate-900 py-3 rounded-lg font-medium hover:bg-slate-200 transition-colors"
+                  >
+                    Quay lại bước trước
+                  </button>
+                )}
               </form>
             </>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center"
-            >
+            <div className="text-center">
               <div className="size-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail className="size-8 text-green-600" />
               </div>
 
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">
-                Kiểm tra email của bạn
-              </h2>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Đã đặt lại mật khẩu thành công</h2>
+              <p className="text-slate-600 mb-6">Bạn có thể sử dụng mật khẩu mới để đăng nhập lại.</p>
 
-              <p className="text-slate-600 mb-6">
-                Chúng tôi đã gửi link đặt lại mật khẩu đến{' '}
-                <span className="font-medium text-slate-900">
-                  {email}
-                </span>
-              </p>
-
-              <p className="text-sm text-slate-500 mb-6">
-                Không nhận được email? Kiểm tra thư mục spam hoặc thử gửi lại.
-              </p>
-
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => setIsSent(false)}
-                  className="w-full bg-orange-600 text-white py-3 rounded-lg font-medium hover:bg-orange-700 transition-colors"
-                >
-                  Gửi lại email
-                </button>
-
-                <Link
-                  to="/login"
-                  className="w-full text-center bg-slate-100 text-slate-900 py-3 rounded-lg font-medium hover:bg-slate-200 transition-colors"
-                >
-                  Quay lại đăng nhập
-                </Link>
-              </div>
-            </motion.div>
+              <motion.button
+                type="button"
+                onClick={() => navigate('/login')}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              >
+                Quay lại đăng nhập
+              </motion.button>
+            </div>
           )}
 
-          {!isSent && (
+          {stage === 'request' && (
             <div className="mt-8">
               <Link
                 to="/login"

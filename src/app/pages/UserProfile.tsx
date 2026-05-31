@@ -86,10 +86,6 @@ export default function UserProfile() {
                 </div>
                 <div className="mt-8 space-y-4 text-sm text-orange-100/90">
                   <div className="rounded-3xl bg-white/10 p-4">
-                    <p className="font-medium">Vai trò hiện tại</p>
-                    <p>{isSeller ? 'Người bán' : 'Người mua'}</p>
-                  </div>
-                  <div className="rounded-3xl bg-white/10 p-4">
                     <p className="font-medium">Ưu đãi cá nhân</p>
                     <p>Giảm giá, sản phẩm đề xuất, và thông báo mới nhất.</p>
                   </div>

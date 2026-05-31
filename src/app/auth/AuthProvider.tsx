@@ -1,5 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { clearAccessToken, clearRole, getAccessToken, getRole, setAccessToken, setRole, type AuthRole } from '../api/authStorage';
+import {
+  clearAccessToken,
+  clearRefreshToken,
+  clearRole,
+  getAccessToken,
+  getRefreshToken,
+  getRole,
+  setAccessToken,
+  setRefreshToken,
+  setRole,
+  type AuthRole,
+} from '../api/authStorage';
 import { api } from '../api/client';
 import { endpoints } from '../api/endpoints';
 import type { AuthState, AuthUser } from './authTypes';
@@ -16,7 +27,7 @@ type AuthContextValue = AuthState & {
   login: (input: LoginInput) => Promise<AuthUser>;
   logout: () => void;
   setUserRole: (role: AuthRole) => void;
-  setSession: (token: string, user: AuthUser) => void;
+  setSession: (token: string, user: AuthUser, refreshToken?: string) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -30,28 +41,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const token = getAccessToken();
-    const role = getRole();
+    const refreshToken = getRefreshToken();
 
-    if (!token || !role) {
+    const clearSession = () => {
+      clearAccessToken();
+      clearRefreshToken();
+      clearRole();
       setState({ token: null, user: null, loading: false });
-      return;
-    }
+    };
+
+    const fetchProfile = async (accessToken: string) => {
+      const res = await api.get<AuthUser | { data: AuthUser }>(endpoints.auth.me, { auth: true });
+      const payload = 'data' in res.data ? res.data.data : res.data;
+      return payload;
+    };
+
+    const refreshAndFetch = async () => {
+      if (!refreshToken) throw new Error('No refresh token');
+      const refreshRes = await api.post<
+        | { accessToken: string; refreshToken?: string; expiresIn: number }
+        | { data: { accessToken: string; refreshToken?: string; expiresIn: number } }
+      >(
+        endpoints.auth.refresh,
+        { refreshToken },
+        { auth: false }
+      );
+      const refreshPayload = 'data' in refreshRes.data ? refreshRes.data.data : refreshRes.data;
+      const newToken = refreshPayload.accessToken;
+      const newRefreshToken = refreshPayload.refreshToken;
+      if (!newToken) throw new Error('Refresh failed');
+      setAccessToken(newToken);
+      if (newRefreshToken) {
+        setRefreshToken(newRefreshToken);
+      }
+      const user = await fetchProfile(newToken);
+      if (!isMounted) return;
+      if (!user.role) {
+        clearSession();
+        return;
+      }
+      setRole(user.role);
+      setState({ token: newToken, user, loading: false });
+    };
+
+    const restoreSession = async () => {
+      if (token) {
+        setState({ token, user: null, loading: true });
+        try {
+          const user = await fetchProfile(token);
+          if (!isMounted) return;
+          setState({ token, user, loading: false });
+        } catch {
+          if (!refreshToken) {
+            clearSession();
+            return;
+          }
+          await refreshAndFetch().catch(() => {
+            if (!isMounted) return;
+            clearSession();
+          });
+        }
+      } else if (refreshToken) {
+        setState({ token: null, user: null, loading: true });
+        await refreshAndFetch().catch(() => {
+          if (!isMounted) return;
+          clearSession();
+        });
+      } else {
+        clearSession();
+      }
+    };
 
     let isMounted = true;
-    setState({ token, user: null, loading: true });
-
-    api
-      .get<AuthUser>(endpoints.auth.me, { auth: true })
-      .then((res) => {
-        if (!isMounted) return;
-        setState({ token, user: res.data, loading: false });
-      })
-      .catch(() => {
-        if (!isMounted) return;
-        clearAccessToken();
-        clearRole();
-        setState({ token: null, user: null, loading: false });
-      });
+    void restoreSession();
 
     return () => {
       isMounted = false;
@@ -62,7 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return {
       ...state,
       async login(input: LoginInput) {
-        const res = await api.post<{ message: string; data: { accessToken: string; user: RawAuthUser } }>(
+        const res = await api.post<
+          | { message: string; data: { accessToken: string; refreshToken?: string; user: RawAuthUser } }
+          | { accessToken: string; refreshToken?: string; user: RawAuthUser }
+        >(
           endpoints.auth.login,
           {
             email: input.email,
@@ -70,8 +135,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           },
           { auth: false }
         );
-        const token = res.data.data.accessToken;
-        const rawUser = res.data.data.user;
+
+        const rawData = 'data' in res.data ? res.data.data : res.data;
+        const token = rawData.accessToken;
+        const refreshToken = rawData.refreshToken;
+        const rawUser = rawData.user;
         const role = rawUser.roles.includes('customer')
           ? 'user'
           : rawUser.roles.includes('seller')
@@ -87,12 +155,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           roles: rawUser.roles.filter((r): r is AuthRole => r === 'user' || r === 'seller' || r === 'admin'),
         };
         setAccessToken(token);
+        if (refreshToken) {
+          setRefreshToken(refreshToken);
+        }
         setRole(user.role);
         setState({ token, user, loading: false });
         return user;
       },
       logout() {
+        void api.post<{ success: boolean }>(endpoints.auth.logout, undefined, { auth: true }).catch(() => {
+          // ignore logout errors, clear local session regardless
+        });
         clearAccessToken();
+        clearRefreshToken();
         clearRole();
         setState({ token: null, user: null, loading: false });
       },
@@ -100,8 +175,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRole(role);
         setState((prev) => (prev.user ? { ...prev, user: { ...prev.user, role } } : prev));
       },
-      setSession(token: string, user: AuthUser) {
+      setSession(token: string, user: AuthUser, refreshToken?: string) {
         setAccessToken(token);
+        if (refreshToken) {
+          setRefreshToken(refreshToken);
+        }
         setRole(user.role);
         setState({ token, user, loading: false });
       },
