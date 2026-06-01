@@ -124,30 +124,59 @@ const productControllerV2 = {
     async addVariants(req, res) {
         try {
             const productId = req.params.id;
-            let variants = typeof req.body.variants === 'string' ? JSON.parse(req.body.variants) : req.body;
             const files = req.files || [];
 
-            // Lấy shopId để tạo folder lưu ảnh
+            let variants = typeof req.body.variants === 'string' ? JSON.parse(req.body.variants) : (req.body.variants || []);
             const product = await productRepoV2.getProductById(productId);
-            
-            // Xử lý upload ảnh riêng lẻ cho cụm biến thể mới thêm
+
             variants = await ProductService.uploadMultipleFilesToSupabase(product.shop_id, productId, 'variant_files', variants, files);
 
+            // Map thêm product_id, tự sinh SKU và lưu thẳng vào DB
             const data = await productRepoV2.createVariants(
-                variants.map(v => ({ ...v, product_id: productId }))
+                variants.map(v => ({
+                    ...v,
+                    product_id: productId,
+                    sku: `${v.name.toLowerCase().replace(/ /g, '-')}-${Date.now()}`
+                }))
             );
+
             res.status(201).json({ success: true, data });
         } catch (error) {
             res.status(400).json({ success: false, message: error.message });
         }
     },
 
-    async updateVariants(req, res) {
+    async updateVariant(req, res) {
         try {
             const { variant_id } = req.params;
-            const variantData = req.body; 
-            const data = await productRepoV2.updateVariant(variant_id, variantData);
-            res.status(200).json({ success: true, data });
+            const { name, sale_price} = req.body; 
+            const variantData = { name, sale_price };
+            const file = req.file; // Nếu có file mới cho biến thể này
+            let updateFields = { ...variantData };
+
+            if (file) {
+                const currentVariant = await productRepoV2.getVariantById(variant_id);
+                if (!currentVariant) {
+                    return res.status(404).json({ success: false, message: "Không tìm thấy biến thể" });
+                }
+                
+                const productId = currentVariant.product_id;
+                const shopId = currentVariant.products?.shop_id; 
+
+                const uploadedPath = await ProductService.uploadSingleFileToSupabase(
+                    shopId,
+                    productId,
+                    `variant-${variant_id}`, 
+                    file
+                );  
+
+                // 3. Nhét đường dẫn ảnh mới vào object để chuẩn bị update vào DB
+                updateFields.file_path = uploadedPath; 
+            }
+            
+            const data = await productRepoV2.updateVariant(variant_id, updateFields);
+            return res.status(200).json({ success: true, message: "Cập nhật biến thể thành công", data });
+
         } catch (error) {
             res.status(400).json({ success: false, message: error.message });
         }
@@ -157,6 +186,9 @@ const productControllerV2 = {
         try {
             const { variant_id } = req.params;
             const { newStock } = req.body; 
+            if (newStock === undefined || newStock < 0) {
+                return res.status(400).json({ success: false, message: "Số lượng tồn kho mới không hợp lệ" });
+            }                           
 
             await ProductService.adjustStock(variant_id, newStock);
             res.status(200).json({ success: true, message: "Cập nhật tồn kho thành công" });
@@ -167,13 +199,42 @@ const productControllerV2 = {
 
     async deleteVariant(req, res) {
         try {
-            const { id, variant_id } = req.params;
-            const product = await productRepoV2.getProductById(id);
-            if (product.product_variants.length <= 1) {
-                return res.status(400).json({ success: false, message: "Sản phẩm phải có ít nhất 1 variant" });
+            const { variant_id } = req.params;
+            const { id: userId } = req.user;
+            
+            // 1. Lấy thông tin của biến thể cần xóa để biết nó thuộc sản phẩm (product_id) nào
+            const variant = await productRepoV2.getVariantById(variant_id);
+            if (!variant) {
+                return res.status(404).json({ success: false, message: "Không tìm thấy biến thể này" });
             }
+
+            const productId = variant.product_id;
+            //variant.products.shop_id có trùng với req.user.shop_id
+            const product = await productRepoV2.getProductById(productId);
+            if (product.shop_id !== req.user.shop_id) {
+                return res.status(403).json({ success: false, message: "Bạn không có quyền xóa biến thể này" });
+            }
+
+            // 2. Viết một hàm ở Repo hoặc dùng query trực tiếp để đếm số lượng biến thể của sản phẩm đó
+            const { data: siblingVariants, error: countError } = await supabase
+                .from('product_variants') // Đảm bảo trùng tên bảng biến thể của bạn
+                .select('id')
+                .eq('product_id', productId);
+
+            if (countError) throw countError;
+
+            // 3. Nếu tổng số biến thể hiện tại của sản phẩm nhỏ hơn hoặc bằng 1 thì CHẶN không cho xóa
+            if (siblingVariants.length <= 1) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Không thể xóa! Sản phẩm bắt buộc phải giữ lại ít nhất 1 biến thể." 
+                });
+            }
+
+            // 4. Nếu đủ điều kiện, tiến hành xóa bản ghi
             await productRepoV2.deleteVariant(variant_id);
-            res.status(200).json({ success: true, message: "Đã xóa biến thể" });
+            
+            res.status(200).json({ success: true, message: "Đã xóa biến thể thành công" });
         } catch (error) {
             res.status(400).json({ success: false, message: error.message });
         }

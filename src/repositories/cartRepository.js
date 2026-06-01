@@ -47,6 +47,7 @@ exports.getCartItems = async (userId) => {
                 sale_price,
                 stock,
                 file_path,
+                product_id,
                 products:product_id (
                     id,
                     name,
@@ -149,25 +150,21 @@ exports.removeFromCart = async (userId, itemId) => {
  * Cập nhật số lượng sản phẩm
  */
 exports.updateQuantity = async (userId, itemId, quantity) => {
-    if (quantity < 1) {
-        return await this.removeFromCart(userId, itemId);
+    if (quantity === undefined || quantity === null || quantity < 0) {
+        throw new Error('Số lượng không hợp lệ');
     }
 
     const cart = await this.getOrCreateCart(userId);
 
     // Kiểm tra item thuộc giỏ của user
     const { data: cartItem, error: itemError } = await cartItemsTable()
-        .select('variant_id')
+        .select('id, variant_id')
         .eq('id', itemId)
         .eq('cart_id', cart.id)
         .single();
 
     if (itemError || !cartItem) {
         throw new Error('Item không tồn tại trong giỏ');
-    }
-
-    if (cartItem.carts.user_id !== userId) {
-        throw new Error('Không có quyền cập nhật item này');
     }
 
     /*

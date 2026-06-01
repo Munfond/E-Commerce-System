@@ -5,12 +5,14 @@ const shopController = {
     registerShop: async (req, res) => {
         try {
             const ownerId = req.user.id; // Lấy từ middleware auth
-            const { shop_info, shop_address } = req.body;
+            const shop_info = typeof req.body.shop_info === 'string' ? JSON.parse(req.body.shop_info) : req.body.shop_info;
+            const shop_address = typeof req.body.shop_address === 'string' ? JSON.parse(req.body.shop_address) : req.body.shop_address;
+            const file = req.file;
+
             if (!shop_info || !shop_address) {
                 return res.status(400).json({ error: "Thiếu thông tin shop hoặc địa chỉ!" });
             }
-            const result = await shopService.registerShop(ownerId, shop_info, shop_address);
-
+            const result = await shopService.registerShop(ownerId, shop_info, shop_address, file);
             res.status(201).json({
                 message: "Đăng ký shop và địa chỉ thành công!",
                 data: result
@@ -36,7 +38,13 @@ const shopController = {
     updateShop: async (req, res) => {
         try {
             const ownerId = req.user.id;
-            const updatedShop = await shopService.updateShop(ownerId, req.body);
+            let updateData = req.body;
+            if (typeof req.body.shop_info === 'string') {
+                updateData = JSON.parse(req.body.shop_info);
+            }
+            
+            const file = req.file;                              
+            const updatedShop = await shopService.updateShop(ownerId, updateData, file);
             res.json({ message: 'Cập nhật thông tin thành công', data: updatedShop });
         } catch (error) {
             res.status(400).json({ error: error.message });

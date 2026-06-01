@@ -26,14 +26,14 @@ exports.getCart = async (req, res) => {
 exports.addItem = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { item_id } = req.params;
+        const { variant_id } = req.params;
         const { quantity } = req.body;
 
-        if (!item_id) {
-            return res.status(400).json({ error: 'Thiếu ID sản phẩm' });
+        if (!variant_id) {
+            return res.status(400).json({ error: 'Thiếu ID biến thể sản phẩm' });
         }
 
-        const result = await cartService.addItemToCart(userId, item_id, quantity);
+        const result = await cartService.addItemToCart(userId, variant_id, quantity);
         return res.status(200).json(result);
     } catch (err) {
         if (err.message.includes('không tồn tại')) {
@@ -44,7 +44,7 @@ exports.addItem = async (req, res) => {
 };
 
 /**
- * DELETE /customer/cart/:item_id
+ * DELETE /customer/cart/items/:item_id
  * Xóa sản phẩm khỏi giỏ
  */
 exports.removeItem = async (req, res) => {
@@ -70,7 +70,7 @@ exports.removeItem = async (req, res) => {
 };
 
 /**
- * PUT /customer/cart/:item_id
+ * PUT /customer/cart/items/:item_id
  * Cập nhật số lượng sản phẩm
  * Body: { quantity: number }
  */

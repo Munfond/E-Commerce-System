@@ -2,7 +2,7 @@ const cartRepo = require('../repositories/cartRepository');
 
 exports.getCart = async (userId) => {
     const items = await cartRepo.getCartItems(userId);
-
+    //console.log(items);
     /*
     `
             id,
@@ -31,9 +31,9 @@ exports.getCart = async (userId) => {
     return {
         items: items.map(item => ({
             id: item.id,
-            product_id: item.product_id,
-            product_name: item.products?.name,
-            file_path: item.products?.file_path,
+            product_id: item.product_variants?.product_id,
+            product_name: item.product_variants?.products?.name,
+            file_path: item.product_variants?.file_path,
             price: item.product_variants?.sale_price,
             quantity: item.quantity,
             subtotal: item.product_variants?.sale_price * item.quantity
@@ -43,12 +43,12 @@ exports.getCart = async (userId) => {
     };
 };
 
-exports.addItemToCart = async (userId, productId, quantity) => {
+exports.addItemToCart = async (userId, variantId, quantity) => {
     if (!quantity || quantity < 1) {
         throw new Error('Số lượng không hợp lệ');
     }
 
-    const item = await cartRepo.addToCart(userId, productId, quantity);
+    const item = await cartRepo.addToCart(userId, variantId, quantity);
     return {
         success: true,
         message: 'Thêm sản phẩm vào giỏ thành công',
@@ -62,11 +62,17 @@ exports.removeItemFromCart = async (userId, itemId) => {
 };
 
 exports.updateItemQuantity = async (userId, itemId, quantity) => {
-    if (!quantity || quantity < 1) {
+    if (quantity === undefined || quantity === null || quantity < 0) {
         throw new Error('Số lượng không hợp lệ');
     }
 
     const item = await cartRepo.updateQuantity(userId, itemId, quantity);
+    if (quantity === 0) {
+        return {
+            success: true,
+            message: 'Đã xóa sản phẩm khỏi giỏ hàng'
+        };
+    }
     return {
         success: true,
         message: 'Cập nhật số lượng thành công',

@@ -1,8 +1,30 @@
 const shopRepo = require('../repositories/shopRepository');
 
+async function uploadLogoToStorage(ownerId, file) {
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `logo-${ownerId}-${Date.now()}.${fileExt}`;
+    const filePath = `${ownerId}/${fileName}`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('shops') // Đảm bảo bạn đã tạo bucket tên là 'shops' trên Supabase Storage
+        .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            upsert: true
+        });
+
+    if (uploadError) {
+        throw new Error(`Lỗi upload logo lên Storage: ${uploadError.message}`);
+    }
+
+    return uploadData.path; // Trả về đường dẫn tương đối
+}
+
 const shopService = {
     // 1. Đăng ký shop
-    async registerShop(ownerId, shopInfo, shopAddress) {
+    async registerShop(ownerId, shopInfo, shopAddress, file) {
+        if (file) {
+            shopInfo.shop_logo = await uploadLogoToStorage(ownerId, file);
+        }
         const newShop = await shopRepo.create(ownerId, shopInfo);
 
         if (!newShop || !newShop.id) {
@@ -30,10 +52,13 @@ const shopService = {
     },
 
     // 3. Cập nhật thông tin shop (chỉ cho phép update nếu shop không bị BANNED)
-    async updateShop(ownerId, updateData) {
+    async updateShop(ownerId, updateData, file) {
         const shop = await shopRepo.findByOwnerId(ownerId);
         if (shop.admin_control_status === 'BANNED') {
             throw new Error('Shop đang bị khóa bởi hệ thống, không thể cập nhật.');
+        }
+        if (file) {
+            updateData.shop_logo = await uploadLogoToStorage(ownerId, file);
         }
         return await shopRepo.update(ownerId, updateData);
     },

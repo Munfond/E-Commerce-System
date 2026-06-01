@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middlewares/authMiddleware');
 const userController = require('../controllers/userController');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/me', authenticateToken, userController.getMe);
-router.put('/me', authenticateToken, userController.updateProfile);
+router.put('/me', authenticateToken, upload.single('avatar_url'), userController.updateProfile);
 router.put('/password', authenticateToken, userController.changePassword);
 
 router.get('/me/addresses', authenticateToken, userController.getAddresses);

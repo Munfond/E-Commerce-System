@@ -33,8 +33,35 @@ const userController = {
         try {
             const userId = req.user.id;
             const { username, avatar_url } = req.body;
+            let avatarUrl = req.body.avatar_url;
 
-            const updatedUser = await userRepo.updateUserProfile(userId, { username, avatar_url });
+            if (req.file) {
+                const file = req.file;
+                const fileExt = file.originalname.split('.').pop();
+                const fileName = `avatar-${userId}-${Date.now()}.${fileExt}`;
+                const filePath = `${userId}/${fileName}`;
+
+                // 1. Upload file trực tiếp lên bucket 'avatars' của Supabase Storage
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('avatars') // Đảm bảo bạn đã tạo bucket đặt tên là 'avatars' trên Supabase
+                    .upload(filePath, file.buffer, {
+                        contentType: file.mimetype,
+                        upsert: true
+                    });
+
+                if (uploadError) {
+                    throw new Error(`Lỗi upload ảnh đại diện: ${uploadError.message}`);
+                }
+
+                // 2. Gán đường dẫn vừa thu được vào biến để lưu xuống DB
+                avatarUrl = uploadData.path; 
+            }
+
+                const updatedUser = await userRepo.updateUserProfile(userId, { 
+                username, 
+                avatar_url: avatarUrl 
+            });
+
             if (!updatedUser) {
                 return res.status(404).json({ error: "Không tìm thấy người dùng." });
             }
@@ -45,7 +72,7 @@ const userController = {
                     id: updatedUser.id,
                     username: updatedUser.username,
                     email: updatedUser.email,
-                    avatar_url: updatedUser.avatar_url
+                    avatar_url: updatedUser.avatar_url // Trả về tương đối, Frontend tự nối Base URL
                 }
             });
         } catch (error) {

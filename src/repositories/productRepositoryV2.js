@@ -61,9 +61,9 @@ const productRepoV2 = {
     },
     async getVariantById(variantId) {
         const {data, error} = await productVariantTable()
-            .select('*, products(*)')
+            .select('*, product_id, products(shop_id)')
             .eq('id', variantId)
-            .single();
+            .maybeSingle();
         if (error) throw error;
         return data;
     },
@@ -71,7 +71,7 @@ const productRepoV2 = {
         const {data, error} = await productImageTable()
             .select('*, products(*)')
             .eq('id', productId)
-            .single();
+            .maybeSingle();
         if (error) throw error;
         return data;
     },

@@ -10,15 +10,15 @@ router.get("/me", authenticateToken, authorizeSeller, productControllerV2.getMyS
 router.get("/:id", productControllerV2.getDetail);
 
 router.use(authenticateToken);
-router.put("/me/:id/variants/:variant_id/stock", authorizeSeller, productControllerV2.updateStock);
-router.put("/me/:id/variants/:variant_id", authorizeSeller, productControllerV2.updateVariants);
-router.delete("/me/:id/variants/:variant_id", authorizeSeller, productControllerV2.deleteVariant);
+router.patch("/me/variants/:variant_id/stock", authorizeSeller, productControllerV2.updateStock);
+router.put("/me/variants/:variant_id", authorizeSeller, upload.single('image'), productControllerV2.updateVariant);
+router.delete("/me/variants/:variant_id", authorizeSeller, productControllerV2.deleteVariant);
 
-router.delete("/me/:id/images/:image_id", authorizeSeller, productControllerV2.deleteImage);
-router.post("/me/:id/images", authorizeSeller, productControllerV2.addImages);
+router.delete("/me/images/:image_id", authorizeSeller, productControllerV2.deleteImage);
+router.post("/me/:id/images", authorizeSeller, upload.array('image_files', 10), productControllerV2.addImages);
 
-router.post("/me/:id/variants", authorizeSeller, productControllerV2.addVariants);
-router.put("/me/:id", authorizeSeller, productControllerV2.updateProduct);
+router.post("/me/:id/variants", authorizeSeller, upload.array('variant_files', 20), productControllerV2.addVariants);
+router.patch("/me/:id", authorizeSeller, productControllerV2.updateProduct);
 //router.patch("/me/:id", authorizeSeller, productControllerV2.update);
 //router.post("/me", authorizeSeller, productControllerV2.create);
 router.post("/me", authorizeSeller, upload.fields([

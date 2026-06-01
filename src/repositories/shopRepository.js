@@ -34,7 +34,8 @@ const shopRepo = {
             .update(updateData)
             .update('updated_at', new Date().toISOString())
             .eq('owner_id', ownerId)
-            .select();
+            .select()
+            .single();
         if (error) throw error;
         return data;
     },

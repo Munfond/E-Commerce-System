@@ -2,6 +2,23 @@ const productRepoV2 = require('../repositories/productRepositoryV2');
 const supabase = require('../config/supabase');
 
 const ProductService = {
+    async uploadSingleFileToSupabase(shopId, productId, prefix, file) {
+        if (!file) return null;
+
+        const fileExt = file.originalname.split('.').pop();
+        const fileName = `${prefix}-${Date.now()}.${fileExt}`;
+        const filePath = `${shopId}/${productId}/${fileName}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('products') 
+            .upload(filePath, file.buffer, {
+                contentType: file.mimetype,
+                upsert: true
+            });
+
+        if (uploadError) throw new Error(`Lỗi tải ảnh lên Supabase: ${uploadError.message}`);
+        return uploadData.path;
+    },
     // Hàm phụ trợ độc lập: Thực hiện Upload mảng file lên Supabase Storage và trả về mảng dữ liệu chứa file_path
     async uploadMultipleFilesToSupabase(shopId, productId, prefix, textArray, files) {
         if (!files || files.length === 0) return textArray;
@@ -87,14 +104,10 @@ const ProductService = {
 
         // 4. Chuẩn bị mảng dữ liệu để Bulk Insert vào Database
         const variantTasks = variants.map(v => {
-            const shortName = product.name.toLowerCase()
-                .replace(/ /g, '-')
-                .replace(/[^\w-]+/g, '');
-
             return { 
                 ...v, 
                 product_id: productId, 
-                sku: `${shortName}-${v.name.toLowerCase().replace(/ /g, '-')}-${Date.now()}` 
+                sku: `${v.name.toLowerCase().replace(/ /g, '-')}-${Date.now()}` 
             };
         });
         const imageTasks = finalImages.map(img => ({ ...img, product_id: productId }));
@@ -172,8 +185,11 @@ const ProductService = {
         const variant = await productRepoV2.getVariantById(variantId);
         const offset = newTotalStock - variant.stock;
         
-        if (offset === 0) return;
-        return await productRepoV2.updateStock(variantId, offset);
+        if (offset === 0) {
+            return { message: "Số lượng không thay đổi" };
+        }
+        await productRepoV2.updateStock(variantId, offset);
+        return { message: "Cập nhật tồn kho thành công", data: { variantId, newTotalStock } };
     }
 };
 
