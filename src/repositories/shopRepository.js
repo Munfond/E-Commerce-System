@@ -73,7 +73,8 @@ const shopRepo = {
     },
     async assignUserToSeller (sellerId) {
         const { data, error } = await supabase
-            .from('private_auth.user_roles')
+            .schema('private_auth')
+            .from('user_roles')
             .insert({ user_id: sellerId, role_id: 2 });
         if (error) throw error;
         return data;
