@@ -51,7 +51,8 @@ exports.getCartItems = async (userId) => {
                 products:product_id (
                     id,
                     name,
-                    brand
+                    brand,
+                    shop_id
                 )
             )
         `)

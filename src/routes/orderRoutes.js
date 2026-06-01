@@ -24,8 +24,12 @@ router.patch('/customer/orders/:id', authenticateToken, orderController.cancelOr
 router.post('/customer/orders', authenticateToken, orderController.createOrder);
 
 // GET /api/v1/customer/orders/:id/payment_link
-// Get payment link for order
+// Get VNPay payment link for order
 router.get('/customer/orders/:id/payment_link', authenticateToken, orderController.getPaymentLink);
+
+// GET /api/v1/orders/customer/vnpay_return
+// VNPay payment return callback (does NOT require token as it is a redirect from gateway)
+router.get('/customer/vnpay_return', orderController.vnpayReturn);
 
 // ============================================
 // SELLER ROUTES (Authentication + Seller role required)

@@ -116,13 +116,9 @@ exports.getAdminOrders = async (status = null, shopId = null, page = 1, limit = 
 /**
  * Create new order (checkout)
  */
-exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) => {
+exports.createOrder = async (userId, paymentMethod, shippingAddress) => {
     try {
         // Validate input
-        if (!Array.isArray(cartItems) || cartItems.length === 0) {
-            throw new Error('Giỏ hàng không thể trống');
-        }
-
         if (!paymentMethod || typeof paymentMethod !== 'string') {
             throw new Error('Phương thức thanh toán không hợp lệ');
         }
@@ -140,22 +136,7 @@ exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) 
             throw new Error('Địa chỉ giao hàng tối đa 500 ký tự');
         }
 
-        // Validate cart items
-        const validatedItems = [];
-        for (const item of cartItems) {
-            if (!item.product_id || !item.quantity) {
-                throw new Error('Dữ liệu sản phẩm trong giỏ không hợp lệ');
-            }
-            if (item.quantity <= 0) {
-                throw new Error('Số lượng sản phẩm phải lớn hơn 0');
-            }
-            validatedItems.push({
-                product_id: item.product_id,
-                quantity: parseInt(item.quantity)
-            });
-        }
-
-        const result = await orderRepo.createOrder(userId, validatedItems, paymentMethod, shippingAddress.trim());
+        const result = await orderRepo.createOrder(userId, paymentMethod, shippingAddress.trim());
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi tạo đơn hàng: ${err.message}`);
@@ -229,4 +210,11 @@ exports.getPaymentLink = async (orderId, userId) => {
     } catch (err) {
         throw new Error(`Lỗi khi tạo link thanh toán: ${err.message}`);
     }
+};
+
+/**
+ * Direct update order status (bypassing seller check, e.g. for IPN/payment callbacks)
+ */
+exports.updateOrderStatusDirect = async (orderId, status) => {
+    return await orderRepo.updateOrderStatusDirect(orderId, status);
 };

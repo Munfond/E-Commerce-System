@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const cartRepo = require('./cartRepository');
 
 const orderTable = () => supabase.from('orders');
 const orderItemsTable = () => supabase.from('order_items');
@@ -53,14 +54,8 @@ exports.getCustomerOrders = async (userId, status = null) => {
         return {
             id: order.id,
             "product name": productName,
-            "product_name": productName,
-            "productName": productName,
             "product image": productImage,
-            "product_image": productImage,
-            "productImage": productImage,
             "total amout": order.total_amount,
-            "total_amount": order.total_amount,
-            "totalAmount": order.total_amount,
             status: order.status,
             created_at: order.created_at,
             payment_method: order.payment_method,
@@ -83,20 +78,49 @@ exports.getOrderById = async (orderId, userId) => {
     if (orderError && orderError.code !== 'PGRST116') throw orderError;
     if (!order) throw new Error('Đơn hàng không tồn tại');
 
-    // Get order items
-    const { data: items, error: itemsError } = await orderItemsTable()
-        .select('*, product:products(name, image_url)')
+    // Get order items joining variants and products
+    const { data: rawItems, error: itemsError } = await orderItemsTable()
+        .select(`
+            id,
+            price_at_purchase,
+            quantity,
+            product_variants (
+                id,
+                name,
+                file_path,
+                products (
+                    id,
+                    name
+                )
+            )
+        `)
         .eq('order_id', orderId);
 
     if (itemsError) throw itemsError;
 
-    // Get order history
-    const { data: history, error: historyError } = await orderHistoryTable()
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: true });
+    const items = (rawItems || []).map(item => ({
+        id: item.id,
+        price_at_purchase: item.price_at_purchase,
+        quantity: item.quantity,
+        product: {
+            name: item.product_variants?.products?.name || '',
+            image_url: item.product_variants?.file_path || ''
+        }
+    }));
 
-    if (historyError) throw historyError;
+    // Get order history safely
+    let history = [];
+    try {
+        const { data, error } = await orderHistoryTable()
+            .select('*')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: true });
+        if (!error && data) {
+            history = data;
+        }
+    } catch (e) {
+        console.warn('order_history table not available:', e.message);
+    }
 
     return {
         ...order,
@@ -117,20 +141,51 @@ exports.getOrderByIdAdmin = async (orderId) => {
     if (orderError && orderError.code !== 'PGRST116') throw orderError;
     if (!order) throw new Error('Đơn hàng không tồn tại');
 
-    // Get order items
-    const { data: items, error: itemsError } = await orderItemsTable()
-        .select('*, product:products(name, image_url, seller_id)')
+    // Get order items joining variants and products
+    const { data: rawItems, error: itemsError } = await orderItemsTable()
+        .select(`
+            id,
+            price_at_purchase,
+            quantity,
+            product_variants (
+                id,
+                name,
+                file_path,
+                products (
+                    id,
+                    name,
+                    shop_id
+                )
+            )
+        `)
         .eq('order_id', orderId);
 
     if (itemsError) throw itemsError;
 
-    // Get order history
-    const { data: history, error: historyError } = await orderHistoryTable()
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: true });
+    const items = (rawItems || []).map(item => ({
+        id: item.id,
+        price_at_purchase: item.price_at_purchase,
+        quantity: item.quantity,
+        product: {
+            name: item.product_variants?.products?.name || '',
+            image_url: item.product_variants?.file_path || '',
+            seller_id: item.product_variants?.products?.shop_id || null // use shop_id as seller identifier
+        }
+    }));
 
-    if (historyError) throw historyError;
+    // Get order history safely
+    let history = [];
+    try {
+        const { data, error } = await orderHistoryTable()
+            .select('*')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: true });
+        if (!error && data) {
+            history = data;
+        }
+    } catch (e) {
+        console.warn('order_history table not available:', e.message);
+    }
 
     return {
         ...order,
@@ -227,76 +282,87 @@ exports.getAdminOrders = async (status = null, shopId = null, limit = 10, offset
 /**
  * Create new order from cart
  */
-exports.createOrder = async (userId, cartItems, paymentMethod, shippingAddress) => {
-    // Start transaction-like behavior
-    // Create order
+exports.createOrder = async (userId, paymentMethod, addressId) => {
+    // 1. Lấy thông tin từ giỏ hàng hiện tại của user
+    const cartItems = await cartRepo.getCartItems(userId);
+    if (!cartItems || cartItems.length === 0) {
+        throw new Error('Giỏ hàng trống, không thể tạo đơn hàng');
+    }
+
+    // 2. Kiểm tra tồn kho (stock) của từng mẫu sản phẩm (variant)
+    for (const item of cartItems) {
+        const variantStock = item.product_variants?.stock || 0;
+        const variantName = item.product_variants?.name || 'Sản phẩm';
+        if (variantStock < item.quantity) {
+            throw new Error(`Mẫu sản phẩm "${variantName}" không đủ hàng trong kho (Còn lại: ${variantStock})`);
+        }
+    }
+
+    // 3. Tính tổng tiền & lấy shop_id từ sản phẩm đầu tiên
+    let totalAmount = 0;
+    for (const item of cartItems) {
+        const price = item.product_variants?.sale_price || 0;
+        totalAmount += price * item.quantity;
+    }
+    
+    const shopId = cartItems[0]?.product_variants?.products?.shop_id || null;
+
+    // 4. Tạo đơn hàng mới trong bảng orders
     const { data: order, error: orderError } = await orderTable()
         .insert({
             user_id: userId,
-            total_amount: 0, // Will be calculated
+            address_id: addressId,
+            shop_id: shopId,
+            total_amount: totalAmount,
             status: 'PENDING',
-            payment_method: paymentMethod,
-            shipping_address: shippingAddress
+            payment_method: paymentMethod
         })
         .select()
         .single();
 
     if (orderError) throw orderError;
 
-    // Create order items and calculate total
-    let totalAmount = 0;
+    // 5. Thêm các sản phẩm vào order_items & Trừ số lượng tồn kho (stock) trong product_variants
     const orderItemsData = [];
-
-    for (const cartItem of cartItems) {
-        const { data: product, error: productError } = await productTable()
-            .select('price, stock_quantity')
-            .eq('id', cartItem.product_id)
-            .single();
-
-        if (productError || !product) {
-            throw new Error(`Sản phẩm ${cartItem.product_id} không tồn tại`);
-        }
-
-        if (product.stock_quantity < cartItem.quantity) {
-            throw new Error(`Hết hàng: Số lượng tồn kho không đủ`);
-        }
-
-        const itemTotal = product.price * cartItem.quantity;
-        totalAmount += itemTotal;
-
+    for (const item of cartItems) {
+        const priceAtPurchase = item.product_variants?.sale_price || 0;
         orderItemsData.push({
             order_id: order.id,
-            product_id: cartItem.product_id,
-            quantity: cartItem.quantity,
-            price: product.price
+            variant_id: item.variant_id,
+            price_at_purchase: priceAtPurchase,
+            quantity: item.quantity
         });
+
+        // Trừ tồn kho (stock) của variant
+        const newStock = (item.product_variants?.stock || 0) - item.quantity;
+        const { error: stockError } = await supabase
+            .from('product_variants')
+            .update({ stock: newStock })
+            .eq('id', item.variant_id);
+
+        if (stockError) throw stockError;
     }
 
-    // Insert order items
+    // Chèn danh sách order_items
     const { error: itemsError } = await orderItemsTable()
         .insert(orderItemsData);
 
     if (itemsError) throw itemsError;
 
-    // Update order total
-    const { error: updateError } = await orderTable()
-        .update({ total_amount: totalAmount })
-        .eq('id', order.id);
+    // 6. Lưu vào lịch sử đơn hàng (order_history) safely
+    try {
+        await orderHistoryTable()
+            .insert({
+                order_id: order.id,
+                status: 'PENDING',
+                message: 'Đơn hàng được tạo thành công từ giỏ hàng'
+            });
+    } catch (historyErr) {
+        console.warn('order_history table not available:', historyErr.message);
+    }
 
-    if (updateError) throw updateError;
-
-    // Add to order history
-    await orderHistoryTable()
-        .insert({
-            order_id: order.id,
-            status: 'PENDING',
-            message: 'Đơn hàng được tạo'
-        });
-
-    // Clear user's cart
-    await cartTable()
-        .delete()
-        .eq('user_id', userId);
+    // 7. Xóa toàn bộ giỏ hàng hiện tại (reset cart)
+    await cartRepo.clearCart(userId);
 
     return { id: order.id, total_amount: totalAmount };
 };
@@ -327,13 +393,17 @@ exports.cancelOrder = async (orderId, userId, reason) => {
 
     if (updateError) throw updateError;
 
-    // Add to history
-    await orderHistoryTable()
-        .insert({
-            order_id: orderId,
-            status: 'CANCELLED',
-            message: `Hủy đơn hàng: ${reason}`
-        });
+    // Add to history safely
+    try {
+        await orderHistoryTable()
+            .insert({
+                order_id: orderId,
+                status: 'CANCELLED',
+                message: `Hủy đơn hàng: ${reason}`
+            });
+    } catch (historyErr) {
+        console.warn('order_history table not available:', historyErr.message);
+    }
 
     return { success: true };
 };
@@ -373,13 +443,17 @@ exports.updateOrderStatus = async (orderId, sellerId, newStatus) => {
 
     if (updateError) throw updateError;
 
-    // Add to history
-    await orderHistoryTable()
-        .insert({
-            order_id: orderId,
-            status: newStatus,
-            message: `Cập nhật trạng thái: ${getStatusMessage(newStatus)}`
-        });
+    // Add to history safely
+    try {
+        await orderHistoryTable()
+            .insert({
+                order_id: orderId,
+                status: newStatus,
+                message: `Cập nhật trạng thái: ${getStatusMessage(newStatus)}`
+            });
+    } catch (historyErr) {
+        console.warn('order_history table not available:', historyErr.message);
+    }
 
     return { success: true };
 };
@@ -492,4 +566,27 @@ exports.getCustomerInfo = async (userId) => {
 
     if (error && error.code !== 'PGRST116') throw error;
     return data;
+};
+
+/**
+ * Direct update order status (bypassing seller check, e.g. for IPN/payment callbacks)
+ */
+exports.updateOrderStatusDirect = async (orderId, newStatus) => {
+    const { error } = await orderTable()
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+    if (error) throw error;
+
+    // Add to history safely
+    try {
+        await orderHistoryTable()
+            .insert({
+                order_id: orderId,
+                status: newStatus,
+                message: `Thanh toán thành công: Cập nhật trạng thái thành ${getStatusMessage(newStatus)}`
+            });
+    } catch (historyErr) {
+        console.warn('order_history table not available:', historyErr.message);
+    }
 };
