@@ -5,16 +5,27 @@ const productService = require('../services/productService');
  * Search and filter products
  * Query params: q (search), category, sort (name, -name, price, -price, created_at, -created_at)
  */
-exports.searchProducts = async (req, res) => {
+exports.searchProductsByCategory = async (req, res) => {
     try {
-        const { q, category, sort, page, limit } = req.query;
+        const {category, sort, page, limit } = req.query;
 
-        const result = await productService.searchProducts(q, category, sort, page, limit);
+        const result = await productService.searchProductsByCategory(category, sort, page, limit);
         return res.status(200).json(result);
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
 };
+
+exports.searchProductsByKeyword = async (req, res) => {
+    try {
+        const { q, sort, page, limit } = req.query;
+
+        const result = await productService.searchProductsByKeyword(q, sort, page, limit);
+        return res.status(200).json(result);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+}
 
 /**
  * GET /customer/products/:id

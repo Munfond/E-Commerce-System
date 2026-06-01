@@ -7,17 +7,52 @@ const categoryTable = () => supabase.from('categories');
 /**
  * Search and filter products (public)
  */
-exports.searchProducts = async (searchQuery = '', categoryId = null, sortBy = 'name', limit = 10, offset = 0) => {
+// Đổi tên tham số từ categoryId thành categoryIds để tường minh
+exports.searchProductsByCategory = async (categoryIds = null, sortBy = 'name', limit = 10, offset = 0) => {
     let query = productTable()
-        .select('id, name, product_variants(sale_price), product_images(file_path), category_id')
+        .select('id, name, product_variants(*), product_images(file_path), category_id', { count: 'exact' }) // Thêm count để lấy tổng số trang nếu cần
+        .eq('status', 'ACTIVE');
+
+    // ==========================================================
+    // XỬ LÝ SEARCH THEO DANH SÁCH CATEGORY (MẢNG)
+    // ==========================================================
+    if (categoryIds) {
+        // Tình huống 1: Nếu truyền vào là mảng ['id1', 'id2']
+        if (Array.isArray(categoryIds)) {
+            if (categoryIds.length > 0) {
+                query = query.in('category_id', categoryIds); // <--- CHÌA KHÓA: Dùng .in() thay vì .eq()
+            }
+        } 
+        // Tình huống 2: Nếu lỡ Frontend chỉ truyền 1 string đơn lẻ 'id1'
+        else {
+            query = query.eq('category_id', categoryIds);
+        }
+    }
+
+    // Apply sorting
+    const validSortFields = ['name', 'price', 'created_at'];
+    const [field, direction] = sortBy.includes('-') 
+        ? [sortBy.substring(1), 'descending']
+        : [sortBy, 'ascending'];
+
+    if (validSortFields.includes(field)) {
+        query = query.order(field, { ascending: direction === 'ascending' });
+    }
+
+    // Thực hiện phân trang và lấy dữ liệu
+    const { data, error, count } = await query.range(offset, offset + limit - 1);
+
+    if (error) throw error;
+    return { data, count };
+};
+
+exports.searchProductsByKeyword = async (searchQuery = '', sortBy = 'name', limit = 10, offset = 0) => { 
+    let query = productTable()
+        .select('id, name, product_variants(*), product_images(file_path), category_id', { count: 'exact' })
         .eq('status', 'ACTIVE');
 
     if (searchQuery) {
         query = query.ilike('name', `%${searchQuery}%`);
-    }
-
-    if (categoryId) {
-        query = query.eq('category_id', categoryId);
     }
 
     // Apply sorting

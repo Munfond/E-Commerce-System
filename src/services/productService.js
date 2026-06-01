@@ -4,29 +4,36 @@ const categoryRepo = require('../repositories/categoryRepository');
 /**
  * Search and filter products (public)
  */
-exports.searchProducts = async (query = '', category = null, sort = 'name', page = 1, limit = 10) => {
+exports.searchProductsByCategory = async (category = null, sort = 'name', page = 1, limit = 10) => {
     try {
         page = Math.max(1, parseInt(page) || 1);
         limit = Math.min(100, Math.max(1, parseInt(limit) || 10));
         const offset = (page - 1) * limit;
 
-        // Validate category if provided
+        let targetCategoryIds = null;
+
         if (category) {
-            const categoryExists = await categoryRepo.categoryExists(category);
-            if (!categoryExists) {
-                throw new Error('Danh mục không tồn tại');
+            // 1. Gọi hàm đệ quy để lấy sạch ID của danh mục này + tất cả các danh mục con cháu của nó
+            const categoryResult = await categoryRepo.categoryChildExists(category);
+            
+            if (categoryResult.exists) {
+                targetCategoryIds = categoryResult.categoryIds; // Mảng dạng: ['id_cha', 'id_con_1', 'id_con_2'...]
             }
         }
-
         // Validate sort parameter
         const validSorts = ['name', '-name', 'price', '-price', 'created_at', '-created_at'];
         if (!validSorts.includes(sort)) {
             sort = 'name';
         }
-
-        const { data, count } = await productRepo.searchProducts(query, category, sort, limit, offset);
+        const { data, count } = await productRepo.searchProductsByCategory(
+            targetCategoryIds, // Truyền mảng vào đây
+            sort, 
+            parseInt(limit) || 10, 
+            parseInt(offset) || 0
+        );
 
         return {
+            success: true,
             data,
             pagination: {
                 page,
@@ -36,7 +43,41 @@ exports.searchProducts = async (query = '', category = null, sort = 'name', page
             }
         };
     } catch (err) {
-        throw new Error(`Lỗi khi tìm kiếm sản phẩm: ${err.message}`);
+        return res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+exports.searchProductsByKeyword = async (query = '', sort = 'name', page = 1, limit = 10) => {
+    try {
+        page = Math.max(1, parseInt(page) || 1);
+        limit = Math.min(100, Math.max(1, parseInt(limit) || 10));
+        const offset = (page - 1) * limit;
+
+        // Validate sort parameter
+        const validSorts = ['name', '-name', 'price', '-price', 'created_at', '-created_at'];
+        if (!validSorts.includes(sort)) {
+            sort = 'name';
+        }
+
+        const { data, count } = await productRepo.searchProductsByKeyword(
+            query, 
+            sort, 
+            parseInt(limit) || 10, 
+            parseInt(offset) || 0
+        );
+
+        return {
+            success: true,
+            data,
+            pagination: {
+                page,
+                limit,
+                total: count,
+                pages: Math.ceil(count / limit)
+            }
+        };
+    } catch (err) {
+        return res.status(400).json({ success: false, message: error.message });
     }
 };
 
