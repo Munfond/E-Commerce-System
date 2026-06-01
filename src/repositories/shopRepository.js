@@ -29,13 +29,18 @@ const shopRepo = {
         return data;
     },
     async update(ownerId, updateData) {
+        const dataToUpdate = {
+            ...updateData,
+            updated_at: new Date().toISOString()
+        };
+
         const { data, error } = await supabase
             .from('shops')
-            .update(updateData)
-            .update('updated_at', new Date().toISOString())
+            .update(dataToUpdate)
             .eq('owner_id', ownerId)
             .select()
             .single();
+            
         if (error) throw error;
         return data;
     },
@@ -68,7 +73,7 @@ const shopRepo = {
     },
     async assignUserToSeller (sellerId) {
         const { data, error } = await supabase
-            .from('user_roles')
+            .from('private_auth.user_roles')
             .insert({ user_id: sellerId, role_id: 2 });
         if (error) throw error;
         return data;

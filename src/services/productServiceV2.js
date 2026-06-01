@@ -7,7 +7,7 @@ const ProductService = {
 
         const fileExt = file.originalname.split('.').pop();
         const fileName = `${prefix}-${Date.now()}.${fileExt}`;
-        const filePath = `${shopId}/${productId}/${fileName}`;
+        const filePath = `${productId}/${fileName}`;
 
         const { data: uploadData, error: uploadError } = await supabase.storage
             .from('products') 

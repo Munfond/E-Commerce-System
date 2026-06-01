@@ -1,12 +1,12 @@
 const shopRepo = require('../repositories/shopRepository');
+const supabase = require('../config/supabase'); 
 
 async function uploadLogoToStorage(ownerId, file) {
-    const fileExt = file.originalname.split('.').pop();
-    const fileName = `logo-${ownerId}-${Date.now()}.${fileExt}`;
+    const fileName = `logo-${ownerId}-${Date.now()}`;
     const filePath = `${ownerId}/${fileName}`;
 
     const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('shops') // Đảm bảo bạn đã tạo bucket tên là 'shops' trên Supabase Storage
+        .from('shops') 
         .upload(filePath, file.buffer, {
             contentType: file.mimetype,
             upsert: true
