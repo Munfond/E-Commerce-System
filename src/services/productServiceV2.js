@@ -190,6 +190,74 @@ const ProductService = {
         }
         await productRepoV2.updateStock(variantId, offset);
         return { message: "Cập nhật tồn kho thành công", data: { variantId, newTotalStock } };
+    },
+    async syncProductImages({ productId, shopId, imageLayout, files }) {
+        // 1. Lấy toàn bộ ảnh hiện tại đang có trong DB của sản phẩm này
+        const dbImages = await productRepoV2.getProductImages(productId) || [];
+
+        // 2. TÌM VÀ XÓA: Những ảnh cũ không nằm trong layout mới
+        const keepImageIds = imageLayout.filter(item => item.type === 'old').map(item => item.id);
+        const imagesToDelete = dbImages.filter(img => !keepImageIds.includes(img.id));
+
+        if (imagesToDelete.length > 0) {
+            // Xóa file trên Storage
+            const pathsToDelete = imagesToDelete.map(img => img.file_path);
+            await supabase.storage.from('products').remove(pathsToDelete);
+
+            // Xóa bản ghi ở DB qua Repo
+            const idsToDelete = imagesToDelete.map(img => img.id);
+            await productRepoV2.deleteProductImagesByIds(idsToDelete);
+        }
+
+        // 3. UPLOAD FILE MỚI: Đẩy file lên Storage
+        const uploadedFilesMap = {};
+        for (const file of files) {
+            const fileExt = file.originalname.split('.').pop();
+            const fileName = `img-${Date.now()}-${Math.floor(Math.random() * 1000)}.${fileExt}`;
+            const filePath = `${shopId}/${productId}/gallery/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('products')
+                .upload(filePath, file.buffer, { contentType: file.mimetype });
+
+            if (uploadError) throw uploadError;
+
+            uploadedFilesMap[file.originalname] = filePath;
+        }
+
+        // 4. ĐỒNG BỘ LẠI THỨ TỰ (UPSERT)
+        const upsertRows = [];
+        let currentOrder = 0;
+
+        for (const item of imageLayout) {
+            if (item.type === 'old') {
+                const currentImg = dbImages.find(img => img.id === item.id);
+                if (currentImg) {
+                    upsertRows.push({
+                        id: item.id,
+                        product_id: productId,
+                        file_path: currentImg.file_path,
+                        display_order: currentOrder++
+                    });
+                }
+            } else if (item.type === 'new') {
+                const filePath = uploadedFilesMap[item.id];
+                if (filePath) {
+                    upsertRows.push({
+                        product_id: productId,
+                        file_path: filePath,
+                        display_order: currentOrder++
+                    });
+                }
+            }
+        }
+
+        // 5. Gọi Repo thực hiện lưu dữ liệu hàng loạt xuống DB
+        if (upsertRows.length > 0) {
+            return await productRepoV2.upsertProductImages(upsertRows);
+        }
+        
+        return [];
     }
 };
 

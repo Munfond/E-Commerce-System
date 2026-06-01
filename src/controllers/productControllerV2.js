@@ -209,22 +209,22 @@ const productControllerV2 = {
             }
 
             const productId = variant.product_id;
-            //variant.products.shop_id có trùng với req.user.shop_id
-            const product = await productRepoV2.getProductById(productId);
-            if (product.shop_id !== req.user.shop_id) {
+            const shop = await shopRepo.findByOwnerId(userId);
+            if (!shop) {
+                return res.status(404).json({ success: false, message: "Không tìm thấy thông tin cửa hàng của bạn" });
+            }
+
+            // Tận dụng dữ liệu liên kết bảng 'products' đã có sẵn trong biến 'variant' để check quyền luôn
+            const productShopId = variant.products?.shop_id; 
+            if (productShopId !== shop.id) {
                 return res.status(403).json({ success: false, message: "Bạn không có quyền xóa biến thể này" });
             }
 
             // 2. Viết một hàm ở Repo hoặc dùng query trực tiếp để đếm số lượng biến thể của sản phẩm đó
-            const { data: siblingVariants, error: countError } = await supabase
-                .from('product_variants') // Đảm bảo trùng tên bảng biến thể của bạn
-                .select('id')
-                .eq('product_id', productId);
-
-            if (countError) throw countError;
+            const variants = await productRepoV2.getVariantByProductId(productId); 
 
             // 3. Nếu tổng số biến thể hiện tại của sản phẩm nhỏ hơn hoặc bằng 1 thì CHẶN không cho xóa
-            if (siblingVariants.length <= 1) {
+            if (!variants || variants.length <= 1) {
                 return res.status(400).json({ 
                     success: false, 
                     message: "Không thể xóa! Sản phẩm bắt buộc phải giữ lại ít nhất 1 biến thể." 
@@ -239,42 +239,6 @@ const productControllerV2 = {
             res.status(400).json({ success: false, message: error.message });
         }
     },
-
-    // --- IMAGE SECTIONS ---
-
-    async addImages(req, res) {
-        try {
-            const productId = req.params.id;
-            let images = typeof req.body.images === 'string' ? JSON.parse(req.body.images) : (req.body.images || []);
-            const files = req.files || [];
-
-            const product = await productRepoV2.getProductById(productId);
-            
-            // Upload mớ ảnh mô tả mới lên Supabase
-            images = await ProductService.uploadMultipleFilesToSupabase(product.shop_id, productId, 'product_images', images, files);
-
-            const data = await productRepoV2.createProductImages(
-                images.map((img, index) => ({ ...img, product_id: productId, display_order: product.product_images.length + index }))
-            );
-            res.status(201).json({ success: true, data });
-        } catch (error) {
-            res.status(400).json({ success: false, message: error.message });
-        }
-    },
-
-    async deleteImage(req, res) {
-        try {
-            const { id, image_id } = req.params;
-            const product = await productRepoV2.getProductById(id);
-            if (product.product_images.length <= 1) {
-                return res.status(400).json({ success: false, message: "Sản phẩm phải có ít nhất 1 hình ảnh" });
-            }
-            await productRepoV2.deleteProductImages(image_id);
-            res.status(200).json({ success: true, message: "Đã xóa hình ảnh" });
-        } catch (error) {
-            res.status(400).json({ success: false, message: error.message });
-        }
-    }
 };
 
 module.exports = productControllerV2;

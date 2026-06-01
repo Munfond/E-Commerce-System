@@ -67,14 +67,14 @@ const productRepoV2 = {
         if (error) throw error;
         return data;
     },
-    async getProductImageById (productId) {
-        const {data, error} = await productImageTable()
-            .select('*, products(*)')
-            .eq('id', productId)
-            .maybeSingle();
+    async getVariantByProductId(productId) {
+        const {data, error} = await productVariantTable()
+            .select('*')
+            .eq('product_id', productId);
         if (error) throw error;
         return data;
     },
+
     async createProduct(productData) {
         const {data, error} = await productTable()
             .insert({...productData, description: cleanHtmlInput(productData.description)})
@@ -86,13 +86,6 @@ const productRepoV2 = {
     async createVariants(variants) {
         const {data, error} = await productVariantTable()
             .insert(variants)
-            .select('*');
-        if (error) throw error;
-        return data;
-    },
-    async createProductImages(images) {
-        const {data, error} = await productImageTable()
-            .insert(images)
             .select('*');
         if (error) throw error;
         return data;
@@ -118,15 +111,6 @@ const productRepoV2 = {
         if (error) throw error;
         return data;
     },
-    async updateProductImages(imageId, updateData) {
-        const {data, error} = await productImageTable()
-            .update(updateData)
-            .eq('id', imageId)
-            .select('*')
-            .single();
-        if (error) throw error;
-        return data;
-    },
     async updateProductStatus(productId, status) {
         const {data, error} = await productTable()
             .update({status})
@@ -144,19 +128,58 @@ const productRepoV2 = {
         if (error) throw error;
         return data;
     },
-    async deleteProductImages(imageId) {
-        const {data, error} = await productImageTable()
-            .delete()
-            .eq('id', imageId)
-            .select('*');
-        if (error) throw error;
-        return data;
-    },
+
     // Các hàm cập nhật đặc biệt (RPC)
     async updateStock(variantId, offset) {
         const { error } = await supabase.rpc('increment_stock', { target_variant_id: variantId, amount: offset });
         if (error) throw error;
     },
+    // Lấy danh sách ảnh của sản phẩm
+    async getProductImages(productId) {
+        const { data, error } = await productImageTable() 
+            .select('*')
+            .eq('product_id', productId);
+        if (error) throw error;
+        return data;
+    },
+    async createProductImages(images) {
+        const { data, error } = await productImageTable()
+            .insert(images)
+            .select('*');
+        if (error) throw error;
+        return data;
+    },
+
+    // Chèn 1 bản ghi ảnh mới (Thêm ảnh lẻ)
+    async insertProductImage(imageData) {
+        const { data, error } = await productImageTable()
+            .insert(imageData)
+            .select()
+            .single();
+            
+        if (error) throw error;
+        return data;
+    },
+
+    // Xóa 1 bản ghi ảnh dựa trên ID
+    async deleteProductImageById(imageId) {
+            const { error } = await productImageTable()
+            .delete()
+            .eq('id', imageId);
+            
+        if (error) throw error;
+        return true;
+    },
+
+    // Đồng bộ vị trí hàng loạt cho ảnh cũ qua Upsert (Yêu cầu phải có trường ID)
+    async upsertImageOrders(upsertRows) {
+        const { data, error } = await productImageTable()
+            .upsert(upsertRows, { onConflict: 'id' })
+            .select();
+            
+        if (error) throw error;
+        return data;
+    }
 };
 
 module.exports = productRepoV2;
