@@ -11,7 +11,28 @@ const productTable = () => supabase.from('products');
  */
 exports.getCustomerOrders = async (userId, status = null) => {
     let query = orderTable()
-        .select('id, total_amount, status, created_at, payment_method, shipping_address')
+        .select(`
+            id,
+            total_amount,
+            status,
+            created_at,
+            payment_method,
+            address_id,
+            order_items (
+                id,
+                price_at_purchase,
+                quantity,
+                product_variants (
+                    id,
+                    name,
+                    file_path,
+                    products (
+                        id,
+                        name
+                    )
+                )
+            )
+        `)
         .eq('user_id', userId);
 
     if (status) {
@@ -23,7 +44,30 @@ exports.getCustomerOrders = async (userId, status = null) => {
     const { data, error } = await query;
 
     if (error) throw error;
-    return data;
+
+    return data.map(order => {
+        const firstItem = order.order_items?.[0];
+        const productName = firstItem?.product_variants?.products?.name || '';
+        const productImage = firstItem?.product_variants?.file_path || '';
+
+        return {
+            id: order.id,
+            "product name": productName,
+            "product_name": productName,
+            "productName": productName,
+            "product image": productImage,
+            "product_image": productImage,
+            "productImage": productImage,
+            "total amout": order.total_amount,
+            "total_amount": order.total_amount,
+            "totalAmount": order.total_amount,
+            status: order.status,
+            created_at: order.created_at,
+            payment_method: order.payment_method,
+            address_id: order.address_id,
+            order_items: order.order_items
+        };
+    });
 };
 
 /**

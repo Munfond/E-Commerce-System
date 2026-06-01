@@ -9,7 +9,7 @@ const categoryTable = () => supabase.from('categories');
  */
 exports.searchProducts = async (searchQuery = '', categoryId = null, sortBy = 'name', limit = 10, offset = 0) => {
     let query = productTable()
-        .select('id, name, product_variants(price), product_images(image_url), category_id')
+        .select('id, name, product_variants(sale_price), product_images(file_path), category_id')
         .eq('status', 'ACTIVE');
 
     if (searchQuery) {
@@ -68,7 +68,7 @@ exports.getProductByIdAdmin = async (id) => {
  */
 exports.getSellerProducts = async (sellerId, status = null) => {
     let query = productTable()
-        .select('id, name, stock_quantity, status, category_id, product_variants(price)')
+        .select('id, name, stock_quantity, status, category_id, product_variants(sale_price)')
         .eq('seller_id', sellerId);
 
     if (status) {
