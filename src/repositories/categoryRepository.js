@@ -127,3 +127,48 @@ exports.categoryExists = async (id) => {
     if (error && error.code !== 'PGRST116') throw error;
     return !!data;
 };
+
+async function getAllChildIdsRecursive(parentIds) {
+    if (!parentIds || parentIds.length === 0) return [];
+
+    // Tìm tất cả các danh mục con trực tiếp của danh sách parentIds này
+    const { data: children, error } = await categoryTable()
+        .select('id')
+        .in('parent_id', parentIds); // Dùng .in() để quét hàng loạt parent_id
+
+    if (error) throw error;
+
+    if (!children || children.length === 0) return [];
+
+    // Bóc tách mảng ID con vừa tìm được
+    const childIds = children.map(c => c.id);
+
+    // Tiếp tục đào sâu xuống để tìm con của con (gọi đệ quy)
+    const grandChildIds = await getAllChildIdsRecursive(childIds);
+
+    // Gộp tất cả lại thành một mảng phẳng
+    return [...childIds, ...grandChildIds];
+}
+
+// Hàm chính của bạn
+exports.categoryChildExists = async (id) => {
+    // 1. Kiểm tra danh mục gốc có tồn tại không
+    const { data: rootCategory, error } = await categoryTable()
+        .select('id')
+        .eq('id', id)
+        .maybeSingle(); // Dùng maybeSingle() an toàn hơn .single(), đỡ lo lỗi PGRST116
+
+    if (error) throw error;
+    if (!rootCategory) {
+        return { exists: false, categoryIds: [] };
+    }
+
+    // 2. Gọi hàm đệ quy để đào tận gốc trốc rễ các đời con cháu
+    const allChildIds = await getAllChildIdsRecursive([id]);
+
+    // 3. Trả về kết quả gộp: ID gốc + tất cả ID con cháu
+    return {
+        exists: true,
+        categoryIds: [rootCategory.id, ...allChildIds]
+    };
+};

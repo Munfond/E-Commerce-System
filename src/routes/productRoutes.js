@@ -9,7 +9,8 @@ const { authenticateToken, authorizeAdmin, authorizeSeller } = require('../middl
 
 // GET /api/v1/customer/products
 // Search and filter products
-router.get('/customer/products', productController.searchProducts);
+router.get('/category', productController.searchProductsByCategory);
+router.get('/keyword', productController.searchProductsByKeyword);
 
 // GET /api/v1/customer/products/:id
 // Get product details
