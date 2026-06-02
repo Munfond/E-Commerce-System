@@ -190,6 +190,16 @@ function formatDate(date) {
     );
 }
 
+function getVietnamDate() {
+    const now = new Date();
+
+    return new Date(
+        now.toLocaleString("en-US", {
+            timeZone: "Asia/Ho_Chi_Minh"
+        })
+    );
+}
+
 /**
  * GET /customer/orders/:id/payment_link
  * Get VNPay payment link for order
@@ -227,11 +237,10 @@ exports.getPaymentLink = async (req, res) => {
         const ipAddr = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
 
         // 4. Tạo ngày tạo & ngày hết hạn (+15 phút)
-        const date = new Date();
+        const date = getVietnamDate();
         const createDate = formatDate(date);
 
-        const expire = new Date();
-        expire.setMinutes(expire.getMinutes() + 15);
+        const expire = new Date(date.getTime() + 15 * 60 * 1000);
         const expireDate = formatDate(expire);
 
         // 5. Số tiền nhân 100 theo VNPay
