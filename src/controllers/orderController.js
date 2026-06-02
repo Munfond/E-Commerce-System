@@ -200,6 +200,23 @@ function getVietnamDate() {
     );
 }
 
+// Helper: Sort and encode object parameters for VNPay
+function sortObject(obj) {
+    let sorted = {};
+    let str = [];
+    let key;
+    for (key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            str.push(encodeURIComponent(key));
+        }
+    }
+    str.sort();
+    for (key = 0; key < str.length; key++) {
+        sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, "+");
+    }
+    return sorted;
+}
+
 /**
  * GET /customer/orders/:id/payment_link
  * Get VNPay payment link for order
@@ -267,15 +284,10 @@ exports.getPaymentLink = async (req, res) => {
             vnp_ReturnUrl: returnUrl
         };
 
-        // 8. Sắp xếp alphabet theo keys
-        params = Object.keys(params)
-            .sort()
-            .reduce((result, key) => {
-                result[key] = params[key];
-                return result;
-            }, {});
+        // 8. Sắp xếp & mã hóa bảng chữ cái
+        params = sortObject(params);
 
-        // 9. Dựng chuỗi signData
+        // 9. Dựng chuỗi signData để ký
         const signData = qs.stringify(params, { encode: false });
 
         // 10. Tạo checksum (SecureHash)
@@ -286,8 +298,8 @@ exports.getPaymentLink = async (req, res) => {
 
         params['vnp_SecureHash'] = secureHash;
 
-        // 11. Build URL cuối cùng
-        const paymentUrl = baseUrl + '?' + qs.stringify(params, { encode: true });
+        // 11. Build URL cuối cùng (dùng encode: false vì các giá trị đã được sortObject encode chính xác)
+        const paymentUrl = baseUrl + '?' + qs.stringify(params, { encode: false });
 
         // 12. Trả về cho frontend
         return res.status(200).json({ payment_url: paymentUrl });
@@ -312,13 +324,8 @@ exports.vnpayReturn = async (req, res) => {
         delete vnp_Params['vnp_SecureHash'];
         delete vnp_Params['vnp_SecureHashType'];
 
-        // Sắp xếp các tham số
-        vnp_Params = Object.keys(vnp_Params)
-            .sort()
-            .reduce((result, key) => {
-                result[key] = vnp_Params[key];
-                return result;
-            }, {});
+        // Sắp xếp & mã hóa các tham số chuẩn hóa
+        vnp_Params = sortObject(vnp_Params);
 
         const secret = process.env.VNP_HASH_SECRET;
         const signData = qs.stringify(vnp_Params, { encode: false });
