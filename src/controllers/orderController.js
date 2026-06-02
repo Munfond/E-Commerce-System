@@ -234,7 +234,8 @@ exports.getPaymentLink = async (req, res) => {
         }
 
         // 3. Lấy IP khách
-        const ipAddr = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+        // const ipAddr= req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+        const ipAddr = req.headers['x-forwarded-for'] ?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
 
         // 4. Tạo ngày tạo & ngày hết hạn (+15 phút)
         const date = getVietnamDate();
