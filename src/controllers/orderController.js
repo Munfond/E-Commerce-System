@@ -1,7 +1,5 @@
 const orderService = require('../services/orderService');
-const qs = require('qs');
-const crypto = require('crypto');
-
+const paymentService = require('../services/paymentService');
 
 /**
  * GET /customer/orders
@@ -163,59 +161,19 @@ exports.updateOrderStatus = async (req, res) => {
  */
 exports.createOrder = async (req, res) => {
     try {
-        const { payment_method, shipping_address } = req.body;
+        const { cart_items, payment_method, shipping_address } = req.body;
         const userId = req.user.id;
 
-        if (!payment_method || !shipping_address) {
-            return res.status(400).json({ error: 'Thiếu thông tin đơn hàng (payment_method hoặc shipping_address)' });
+        if (!cart_items || !payment_method || !shipping_address) {
+            return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
         }
 
-        const result = await orderService.createOrder(userId, payment_method, shipping_address);
+        const result = await orderService.createOrder(userId, cart_items, payment_method, shipping_address);
         return res.status(201).json(result);
     } catch (err) {
         return res.status(400).json({ error: err.message });
     }
 };
-
-// Helper: Format Date for VNPay (yyyyMMddHHmmss)
-function formatDate(date) {
-    const pad = n => String(n).padStart(2, "0");
-    return (
-        date.getFullYear() +
-        pad(date.getMonth() + 1) +
-        pad(date.getDate()) +
-        pad(date.getHours()) +
-        pad(date.getMinutes()) +
-        pad(date.getSeconds())
-    );
-}
-
-function getVietnamDate() {
-    const now = new Date();
-
-    return new Date(
-        now.toLocaleString("en-US", {
-            timeZone: "Asia/Ho_Chi_Minh"
-        })
-    );
-}
-
-// Helper: Sort and encode object parameters for VNPay
-function sortObject(obj) {
-    let sorted = {};
-    let str = [];
-    let key;
-    for (key in obj) {
-        if (obj.hasOwnProperty(key)) {
-            str.push(encodeURIComponent(key));
-        }
-    }
-    str.sort();
-    for (key = 0; key < str.length; key++) {
-        sorted[str[key]] = encodeURIComponent(obj[str[key]]).replace(/%20/g, "+");
-    }
-    return sorted;
-}
 
 /**
  * GET /customer/orders/:id/payment_link
@@ -225,135 +183,47 @@ exports.getPaymentLink = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
+        const ipAddr = req.headers['x-forwarded-for']?.split(',')[0].trim()
+            || req.socket.remoteAddress
+            || '127.0.0.1';
 
         if (!id) {
             return res.status(400).json({ error: 'Thiếu ID đơn hàng' });
         }
 
-        // 1. Kiểm tra đơn hàng tồn tại & chưa thanh toán
-        const order = await orderService.getOrderDetails(id, userId);
-        if (!order) {
-            return res.status(404).json({ error: 'Đơn hàng không tồn tại' });
-        }
-
-        if (order.status !== 'PENDING') {
-            return res.status(400).json({ error: 'Chỉ có thể tạo link thanh toán cho đơn hàng chưa thanh toán' });
-        }
-
-        // 2. Lấy config từ .env
-        const tmnCode = process.env.VNP_TMN_CODE;
-        const secret = process.env.VNP_HASH_SECRET;
-        const baseUrl = process.env.VNP_URL;
-        const returnUrl = process.env.VNP_RETURN_URL;
-
-        if (!tmnCode || !secret || !baseUrl || !returnUrl) {
-            return res.status(500).json({ error: 'Cấu hình VNPay thiếu trong .env' });
-        }
-
-        // 3. Lấy IP khách
-        // const ipAddr= req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-        const ipAddr = req.headers['x-forwarded-for'] ?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
-
-        // 4. Tạo ngày tạo & ngày hết hạn (+15 phút)
-        const date = getVietnamDate();
-        const createDate = formatDate(date);
-
-        const expire = new Date(date.getTime() + 15 * 60 * 1000);
-        const expireDate = formatDate(expire);
-
-        // 5. Số tiền nhân 100 theo VNPay
-        const amount = order.total_amount * 100;
-
-        // 6. Mã tham chiếu (txnRef)
-        const txnRef = String(order.id);
-
-        // 7. Tạo đối tượng params
-        let params = {
-            vnp_Version: '2.1.0',
-            vnp_Command: 'pay',
-            vnp_TmnCode: tmnCode,
-            vnp_Amount: amount,
-            vnp_CurrCode: 'VND',
-            vnp_TxnRef: txnRef,
-            vnp_OrderInfo: `Thanh toan don hang ${order.id}`,
-            vnp_OrderType: 'other',
-            vnp_Locale: 'vn',
-            vnp_IpAddr: ipAddr,
-            vnp_CreateDate: createDate,
-            vnp_ExpireDate: expireDate,
-            vnp_ReturnUrl: returnUrl
-        };
-
-        // 8. Sắp xếp & mã hóa bảng chữ cái
-        params = sortObject(params);
-
-        // 9. Dựng chuỗi signData để ký
-        const signData = qs.stringify(params, { encode: false });
-
-        // 10. Tạo checksum (SecureHash)
-        const secureHash = crypto
-            .createHmac('sha512', secret)
-            .update(Buffer.from(signData, 'utf-8'))
-            .digest('hex');
-
-        params['vnp_SecureHash'] = secureHash;
-
-        // 11. Build URL cuối cùng (dùng encode: false vì các giá trị đã được sortObject encode chính xác)
-        const paymentUrl = baseUrl + '?' + qs.stringify(params, { encode: false });
-
-        // 12. Trả về cho frontend
-        return res.status(200).json({ payment_url: paymentUrl });
-
+        const result = await orderService.getPaymentLink(id, userId, ipAddr);
+        return res.status(200).json(result);
     } catch (err) {
         if (err.message.includes('không tồn tại')) {
             return res.status(404).json({ error: err.message });
         }
-        return res.status(500).json({ error: err.message });
+        return res.status(400).json({ error: err.message });
     }
 };
 
 /**
- * GET /customer/vnpay_return
- * VNPay Payment Return Callback
+ * GET /orders/vnpay-return
+ * VNPay redirect callback sau khi khách thanh toán (public route)
+ * VNPay gắn kết quả vào query string, ví dụ: ?vnp_ResponseCode=00&vnp_TxnRef=...
  */
 exports.vnpayReturn = async (req, res) => {
     try {
-        let vnp_Params = req.query;
-        const secureHash = vnp_Params['vnp_SecureHash'];
+        const { isValid, isSuccess, data } = paymentService.verifyReturn(req.query);
 
-        delete vnp_Params['vnp_SecureHash'];
-        delete vnp_Params['vnp_SecureHashType'];
+        if (!isValid) {
+            return res.status(400).json({ error: 'Chữ ký không hợp lệ', data });
+        }
 
-        // Sắp xếp & mã hóa các tham số chuẩn hóa
-        vnp_Params = sortObject(vnp_Params);
+        const orderId = data.vnp_TxnRef;
 
-        const secret = process.env.VNP_HASH_SECRET;
-        const signData = qs.stringify(vnp_Params, { encode: false });
-        const checkHash = crypto
-            .createHmac('sha512', secret)
-            .update(Buffer.from(signData, 'utf-8'))
-            .digest('hex');
-
-        if (secureHash === checkHash) {
-            const orderId = vnp_Params['vnp_TxnRef'];
-            const responseCode = vnp_Params['vnp_ResponseCode'];
-
-            if (responseCode === '00') {
-                // Thanh toán thành công -> Cập nhật trạng thái đơn hàng trực tiếp
-                await orderService.updateOrderStatusDirect(orderId, 'CONFIRMED');
-                
-                const frontendUrl = process.env.FRONTEND_URL || 'http://127.0.0.1:5500';
-                return res.redirect(`${frontendUrl}?payment=success&orderId=${orderId}`);
-            } else {
-                // Thanh toán thất bại
-                const frontendUrl = process.env.FRONTEND_URL || 'http://127.0.0.1:5500';
-                return res.redirect(`${frontendUrl}?payment=fail&orderId=${orderId}`);
-            }
+        if (isSuccess) {
+            await orderService.handlePaymentSuccess(orderId);
+            return res.redirect(`${process.env.FRONTEND_URL}/orders/${orderId}?payment=success`);
         } else {
-            return res.status(400).json({ error: 'Chữ ký SecureHash không khớp' });
+            await orderService.handlePaymentFailed(orderId);
+            return res.redirect(`${process.env.FRONTEND_URL}/orders/${orderId}?payment=failed&code=${data.vnp_ResponseCode}`);
         }
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
 };
-

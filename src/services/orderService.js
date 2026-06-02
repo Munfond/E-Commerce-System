@@ -188,24 +188,22 @@ exports.getOrderStatus = async (orderId, sellerId) => {
 /**
  * Get payment link
  */
-exports.getPaymentLink = async (orderId, userId) => {
+exports.getPaymentLink = async (orderId, userId, ipAddr = '127.0.0.1') => {
     try {
         if (!orderId) {
             throw new Error('ID đơn hàng không được để trống');
         }
-
-        // Verify order belongs to user
+ 
         const order = await orderRepo.getOrderById(orderId, userId);
         if (!order) {
             throw new Error('Đơn hàng không tồn tại');
         }
-
-        // Only pending orders can generate payment links
+ 
         if (order.status !== 'PENDING') {
             throw new Error('Chỉ có thể tạo link thanh toán cho đơn hàng chưa thanh toán');
         }
-
-        const result = await orderRepo.createPaymentLink(orderId);
+ 
+        const result = await orderRepo.createPaymentLink(orderId, ipAddr);
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi tạo link thanh toán: ${err.message}`);
@@ -217,4 +215,28 @@ exports.getPaymentLink = async (orderId, userId) => {
  */
 exports.updateOrderStatusDirect = async (orderId, status) => {
     return await orderRepo.updateOrderStatusDirect(orderId, status);
+};
+
+exports.handlePaymentSuccess = async (orderId) => {
+    try {
+        if (!orderId) throw new Error('ID đơn hàng không được để trống');
+ 
+        await orderRepo.handlePaymentSuccess(orderId);
+    } catch (err) {
+        throw new Error(`Lỗi xử lý thanh toán thành công: ${err.message}`);
+    }
+};
+ 
+/**
+ * Xử lý khi VNPay báo thanh toán thất bại
+ * Cập nhật trạng thái đơn hàng -> FAILED
+ */
+exports.handlePaymentFailed = async (orderId) => {
+    try {
+        if (!orderId) throw new Error('ID đơn hàng không được để trống');
+ 
+        await orderRepo.handlePaymentFailed(orderId);
+    } catch (err) {
+        throw new Error(`Lỗi xử lý thanh toán thất bại: ${err.message}`);
+    }
 };
