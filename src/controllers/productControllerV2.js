@@ -239,6 +239,27 @@ const productControllerV2 = {
             res.status(400).json({ success: false, message: error.message });
         }
     },
+    async updateProductStatus(req, res) {
+        try {            
+            const { id } = req.params;
+            const { status } = req.body; 
+            const userId = req.user.id;
+            const shopId = await shopRepo.findByOwnerId(userId).then(shop => shop.id);
+
+            const product = await productRepoV2.getProductById(id);
+            if (product.shop_id !== shopId) throw new Error("Quyền truy cập bị từ chối");
+
+            const validStatuses = ['ACTIVE', 'HIDDEN'];
+            if (!validStatuses.includes(status)) {
+                throw new Error("Trạng thái không hợp lệ");
+            }
+
+            await productRepoV2.updateProductStatus(id, status);
+            res.status(200).json({ success: true, message: "Cập nhật trạng thái sản phẩm thành công" });
+        } catch (error) {
+            res.status(400).json({ success: false, message: error.message });
+        }
+    }
 };
 
 module.exports = productControllerV2;
