@@ -15,9 +15,19 @@ import SellerOrders from "./pages/SellerOrders";
 import SellerInventory from "./pages/SellerInventory";
 import SellerProfile from "./pages/SellerProfile";
 import AddProduct from "./pages/AddProduct";
+import SellerProductDetail from "./pages/SellerProductDetail";
 import Orders from "./pages/Orders";
 import OrderDetail from "./pages/OrderDetail";
 import SellerGuard from "./auth/SellerGuard";
+import AdminGuard from "./auth/AdminGuard";
+import AdminLayout from "./admin/AdminLayout";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminCategories from "./pages/admin/AdminCategories";
+import AdminCategoryForm from "./pages/admin/AdminCategoryForm";
+import AdminOrders from "./pages/admin/AdminOrders";
+import AdminPendingProducts from "./pages/admin/AdminPendingProducts";
+import AdminShops from "./pages/admin/AdminShops";
+import AdminUsers from "./pages/admin/AdminUsers";
 import UserGuard from "./auth/UserGuard";
 import UserProfile from "./pages/UserProfile";
 import SellerOnboardingLayout from "./seller/onboarding/SellerOnboardingLayout";
@@ -42,6 +52,26 @@ export const router = createBrowserRouter([
       { path: "cart", Component: Cart },
       { path: "shops/:id", Component: ShopDetails },
       {
+        path: "admin",
+        Component: AdminGuard,
+        children: [
+          {
+            path: "",
+            Component: AdminLayout,
+            children: [
+              { index: true, Component: AdminDashboard },
+              { path: "categories", Component: AdminCategories },
+              { path: "categories/add", Component: AdminCategoryForm },
+              { path: "categories/:id/edit", Component: AdminCategoryForm },
+              { path: "orders", Component: AdminOrders },
+              { path: "products/pending", Component: AdminPendingProducts },
+              { path: "shops", Component: AdminShops },
+              { path: "users", Component: AdminUsers },
+            ],
+          },
+        ],
+      },
+      {
         path: "seller",
         Component: SellerGuard,
         children: [
@@ -52,6 +82,7 @@ export const router = createBrowserRouter([
               { index: true, Component: SellerIndex },
               { path: "products", Component: SellerDashboard },
               { path: "products/add", Component: AddProduct },
+              { path: "products/:id", Component: SellerProductDetail },
               { path: "profile", Component: SellerProfile },
               { path: "orders", Component: SellerOrders },
               { path: "inventory", Component: SellerInventory },

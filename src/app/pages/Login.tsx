@@ -21,6 +21,11 @@ export default function Login() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 600));
       const user = await auth.login({ email, password });
+      // If the user is admin, redirect to admin panel immediately.
+      if (user.role === 'admin' || user.roles?.includes('admin')) {
+        navigate('/admin', { replace: true });
+        return;
+      }
       const next = new URLSearchParams(location.search).get('next');
       const target = next ?? '/profile';
       navigate(target, { replace: true });

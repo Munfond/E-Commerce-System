@@ -1,5 +1,6 @@
 import { Outlet, NavLink, Link } from 'react-router';
-import { Bell, LayoutGrid, MessageCircle, Settings, ShoppingBag, Store, Package, ChevronDown, User, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, LayoutGrid, MessageCircle, ShoppingBag, Store, Package, ChevronDown, User, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -10,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui/dropdown-menu';
 import { useAuth } from '../../auth/AuthProvider';
+import { getSellerShopInfo } from '../../api/seller/sellerApi';
 
 type NavItem = {
   to: string;
@@ -29,14 +31,32 @@ const navGroups: { title: string; items: NavItem[] }[] = [
       { to: '/seller/inventory', label: 'Kho hàng', icon: Store },
     ],
   },
-  {
-    title: 'Cài đặt',
-    items: [{ to: '/seller/settings', label: 'Thiết lập', icon: Settings }],
-  },
+  // Cài đặt đã bị ẩn, chỉ giữ menu chính cho seller
+  // {
+  //   title: 'Cài đặt',
+  //   items: [{ to: '/seller/settings', label: 'Thiết lập', icon: Settings }],
+  // },
 ];
 
 export default function SellerCenterLayout() {
   const auth = useAuth();
+  const [shopName, setShopName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await getSellerShopInfo();
+        if (!alive) return;
+        setShopName(res.data.shop_name ?? null);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -63,9 +83,15 @@ export default function SellerCenterLayout() {
               <DropdownMenuTrigger asChild>
                 <button className="h-9 px-3 rounded-lg hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                   <div className="size-7 rounded-md bg-slate-900 text-white flex items-center justify-center text-xs font-semibold">
-                    SV
+                    {(() => {
+                      const name = shopName ?? auth.user?.username ?? auth.user?.fullName ?? 'Seller';
+                      const parts = name.split(/\s+/).filter(Boolean);
+                      if (parts.length === 0) return 'S';
+                      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+                      return (parts[0][0] + parts[1][0]).toUpperCase();
+                    })()}
                   </div>
-                  <span className="text-sm font-medium">Seller</span>
+                  <span className="text-sm font-medium">{shopName ?? auth.user?.username ?? 'Seller'}</span>
                   <ChevronDown className="size-4 text-slate-500" />
                 </button>
               </DropdownMenuTrigger>
@@ -77,10 +103,6 @@ export default function SellerCenterLayout() {
                     <User className="mr-2 h-4 w-4" />
                     <span>Thông tin cá nhân</span>
                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Cài đặt tài khoản</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => {

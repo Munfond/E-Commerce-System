@@ -34,6 +34,11 @@ export default function Header({ cartCount }: { cartCount?: number }) {
             <Link to="/seller" className="hover:text-orange-100 transition-colors">
               Kênh Người Bán
             </Link>
+            {auth.user?.role === 'admin' || auth.user?.roles?.includes('admin') ? (
+              <Link to="/admin" className="border-l border-orange-400 pl-4 hover:text-orange-100 transition-colors">
+                Admin
+              </Link>
+            ) : null}
             <Link
               to="/seller/register"
               className="border-l border-orange-400 pl-4 hover:text-orange-100 transition-colors"

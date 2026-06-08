@@ -9,6 +9,7 @@ import type {
   SellerInventoryDto,
   SellerOrderDto,
   SellerOrderSimpleDto,
+  SellerOrderStatus,
   SellerOrderStatusDto,
   SellerProductDto,
   SellerProfileUpsertDto,
@@ -20,6 +21,112 @@ import type {
   SellerShopRegistrationDto,
   SellerShopRegistrationResponseDto,
 } from '../../types/dto/seller';
+
+export type UpdateSellerShopProductDto = {
+  name?: string;
+  description?: string;
+};
+
+export type CreateSellerShopProductDto = {
+  productData: {
+    name: string;
+    description: string;
+    category_id: number | string;
+    brand: string;
+  };
+  variants: Array<{
+    name: string;
+    input_price: number;
+    sale_price: number;
+    stock: number;
+  }>;
+  variant_files?: Record<string, File | File[]> | {};
+  product_images?: File[];
+};
+
+function buildCreateSellerShopProductBody(payload: CreateSellerShopProductDto) {
+  const hasFiles = Array.isArray(payload.product_images) && payload.product_images.length > 0;
+
+  if (!hasFiles) {
+    const result: Record<string, unknown> = {
+      productData: payload.productData,
+      variants: payload.variants,
+    };
+
+    if (payload.variant_files) {
+      result.variant_files = payload.variant_files;
+    }
+
+    return result;
+  }
+
+  const body = new FormData();
+  body.append('productData', JSON.stringify(payload.productData));
+  body.append('variants', JSON.stringify(payload.variants));
+  body.append('variant_files', JSON.stringify(payload.variant_files ?? {}));
+
+  for (const file of payload.product_images ?? []) {
+    body.append('product_images', file);
+  }
+
+  return body;
+}
+
+export async function createSellerShopProduct(payload: CreateSellerShopProductDto) {
+  return api.post<{ success: true; data: SellerShopProductDto | Record<string, unknown> }>(
+    endpoints.seller.shopProductsMe,
+    buildCreateSellerShopProductBody(payload),
+    { auth: true }
+  );
+}
+
+type CreateSellerShopProductVariantDto = {
+  name: string;
+  input_price: number;
+  sale_price: number;
+  stock: number;
+};
+
+export type CreateSellerShopProductVariantsDto = {
+  variants: CreateSellerShopProductVariantDto[];
+  variant_files?: File[];
+};
+
+function buildCreateSellerShopProductVariantsBody(payload: CreateSellerShopProductVariantsDto) {
+  const hasFiles = Array.isArray(payload.variant_files) && payload.variant_files.length > 0;
+
+  if (!hasFiles) {
+    return {
+      variants: payload.variants,
+    };
+  }
+
+  const body = new FormData();
+  body.append('variants', JSON.stringify(payload.variants));
+  for (const file of payload.variant_files ?? []) {
+    body.append('variant_files', file);
+  }
+
+  return body;
+}
+
+export async function createSellerShopProductVariants(
+  id: string,
+  payload: CreateSellerShopProductVariantsDto,
+) {
+  return api.post<{ success: true; data: Record<string, unknown> }>(
+    endpoints.seller.shopProductVariants(id),
+    buildCreateSellerShopProductVariantsBody(payload),
+    { auth: true }
+  );
+}
+
+export async function deleteSellerShopProductVariant(variantId: string) {
+  return api.del<{ success: true; message: string }>(
+    endpoints.seller.shopProductVariant(variantId),
+    { auth: true }
+  );
+}
 
 export async function listSellerProducts(params?: ListSellerProductsQueryDto) {
   return api.get<PageDto<SellerProductDto>>(endpoints.seller.products, {
@@ -53,6 +160,12 @@ type RawSellerOrderDto = {
   shop_id: string;
 };
 
+function normalizeOrderStatus(status: string): SellerOrderStatusDto {
+  const normalized = status.toUpperCase();
+  const allowedStatuses: SellerOrderStatusDto[] = ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'FAILED'];
+  return allowedStatuses.includes(normalized as SellerOrderStatusDto) ? (normalized as SellerOrderStatusDto) : 'PENDING';
+}
+
 function normalizeSellerOrderDto(dto: SellerOrderDto | RawSellerOrderDto): SellerOrderDto {
   if ('buyer' in dto) {
     return dto;
@@ -64,7 +177,7 @@ function normalizeSellerOrderDto(dto: SellerOrderDto | RawSellerOrderDto): Selle
     createdAt: dto.created_at,
     total: dto.total_amount,
     items: 'items' in dto ? (dto as any).items ?? 0 : 0,
-    status: typeof dto.status === 'string' ? dto.status.toLowerCase() as SellerOrderDto['status'] : 'pending',
+    status: typeof dto.status === 'string' ? normalizeOrderStatus(dto.status) : 'PENDING',
   };
 }
 
@@ -100,20 +213,28 @@ export async function listSellerOrders(params?: ListSellerOrdersQueryDto) {
   };
 }
 
-export async function listSellerOrderStatus(orderId: string) {
-  const res = await api.get<{ status: string }>(endpoints.seller.orderStatus(orderId), { auth: true });
+export async function listSellerOrderStatus(id: string) {
+  const res = await api.get<{ status: string }>(endpoints.seller.orderStatus(id), { auth: true });
   return {
     ...res,
     data: {
       status: typeof res.data.status === 'string'
-        ? res.data.status.toLowerCase() as SellerOrderStatusDto
-        : 'pending',
+        ? res.data.status.toLowerCase() as SellerOrderStatus
+        : ('pending' as SellerOrderStatus),
     },
   };
 }
 
+export async function updateSellerOrderStatus(id: string, status: SellerOrderStatusDto) {
+  return api.patch<{ success: true }>(endpoints.seller.orderStatus(id), { status }, { auth: true });
+}
+
 export async function listSellerOrdersSimple() {
   return api.get<SellerOrderSimpleDto[]>(endpoints.orders.seller, { auth: true });
+}
+
+export async function updateSellerShopProduct(id: string, payload: UpdateSellerShopProductDto) {
+  return api.patch<SellerShopProductDto>(endpoints.seller.shopProduct(id), payload, { auth: true });
 }
 
 export async function listSellerInventory(params?: ListSellerInventoryQueryDto) {
@@ -130,8 +251,44 @@ export async function registerSellerShop(payload: SellerShopRegistrationDto) {
   return api.post<SellerShopRegistrationResponseDto>(endpoints.seller.shops, payload);
 }
 
+type SellerShopInfoRawDto =
+  | SellerShopInfoDto
+  | { success: boolean; data?: SellerShopInfoDto | { shop: SellerShopInfoDto; shop_info?: SellerShopInfoDto } }
+  | { data?: SellerShopInfoDto | { shop: SellerShopInfoDto; shop_info?: SellerShopInfoDto } }
+  | { shop?: SellerShopInfoDto; shop_info?: SellerShopInfoDto };
+
+function normalizeSellerShopInfoDto(raw: unknown): SellerShopInfoDto {
+  const asObj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+
+  let payload = asObj as Record<string, unknown>;
+  if (typeof payload.success === 'boolean' && payload.data) {
+    payload = payload.data as Record<string, unknown>;
+  } else if (payload.data) {
+    payload = payload.data as Record<string, unknown>;
+  }
+
+  const shop = (payload.shop ?? payload.shop_info ?? payload) as Record<string, unknown>;
+
+  return {
+    id: String(shop.id ?? ''),
+    shop_name: String(shop.shop_name ?? shop.name ?? ''),
+    shop_description: shop.shop_description ? String(shop.shop_description) : undefined,
+    legal_full_name: shop.legal_full_name ? String(shop.legal_full_name) : undefined,
+    shop_logo: shop.shop_logo ? String(shop.shop_logo) : undefined,
+    email: shop.email ? String(shop.email) : undefined,
+    phone: shop.phone ? String(shop.phone) : undefined,
+    status: shop.status ? String(shop.status) : undefined,
+    tax_code: shop.tax_code ? String(shop.tax_code) : undefined,
+    identity_number: shop.identity_number ? String(shop.identity_number) : undefined,
+  };
+}
+
 export async function getSellerShopInfo() {
-  return api.get<SellerShopInfoDto>(endpoints.seller.shopMe, { auth: true });
+  const res = await api.get<SellerShopInfoRawDto>(endpoints.seller.shopMe, { auth: true });
+  return {
+    ...res,
+    data: normalizeSellerShopInfoDto(res.data),
+  };
 }
 
 export async function updateSellerShopInfo(payload: {

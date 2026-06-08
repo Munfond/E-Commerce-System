@@ -28,13 +28,16 @@ export const endpoints = {
   },
   orders: {
     customer: 'orders/customer/orders',
-    customerOrder: (orderId: string) => `orders/customer/orders/${orderId}`,
+    customerOrder: (id: string) => `orders/customer/orders/${id}`,
     seller: 'orders/seller/orders',
   },
   seller: {
     products: 'seller/products',
     orders: 'orders/seller/orders',
-    orderStatus: (orderId: string) => `orders/seller/orders/${orderId}/status`,
+    shopProduct: (id: string) => `../v2/products/me/${id}`,
+    shopProductVariants: (id: string) => `../v2/products/me/${id}/variants`,
+    shopProductVariant: (variantId: string) => `../v2/products/me/variants/${variantId}`,
+    orderStatus: (id: string) => `orders/seller/orders/${id}/status`,
     inventory: 'seller/inventory',
     profile: 'seller/profile',
     shops: 'sellers/shops',

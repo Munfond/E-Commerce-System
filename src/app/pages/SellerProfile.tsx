@@ -3,7 +3,17 @@ import { Link } from 'react-router';
 import { User, Mail, ShieldCheck, ArrowLeft, Upload } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { getSellerShopInfo, updateSellerShopInfo } from '../api/seller/sellerApi';
+import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { IMAGE_BASE_URL } from '../api/config';
 import type { SellerShopInfoDto } from '../types/dto/seller';
+
+const constructImageUrl = (filePath: string | undefined | null): string => {
+  if (!filePath) return '';
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+  return `${IMAGE_BASE_URL}${filePath}`;
+};
 
 export default function SellerProfile() {
   const auth = useAuth();
@@ -41,7 +51,9 @@ export default function SellerProfile() {
         setShopInfo(response.data);
         setFormState((prev) => ({
           ...prev,
-          shopName: response.data.shop_name,
+          shopName: response.data.shop_name || '',
+          shopDescription: response.data.shop_description || '',
+          legalFullName: response.data.legal_full_name || '',
         }));
       } catch (error) {
         if (!alive) return;
@@ -82,7 +94,12 @@ export default function SellerProfile() {
       });
       setEditSuccess('Thông tin shop đã được cập nhật thành công.');
       if (shopInfo) {
-        setShopInfo({ ...shopInfo, shop_name: formState.shopName });
+        setShopInfo({
+          ...shopInfo,
+          shop_name: formState.shopName,
+          shop_description: formState.shopDescription,
+          legal_full_name: formState.legalFullName,
+        });
       }
     } catch (error) {
       setEditError('Không thể cập nhật thông tin shop. Vui lòng thử lại.');
@@ -121,8 +138,18 @@ export default function SellerProfile() {
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div className="flex items-center gap-4">
-              <div className="size-14 rounded-3xl bg-orange-600 text-white flex items-center justify-center">
-                <User className="size-7" />
+              <div className="relative">
+                <div className="size-14 rounded-3xl bg-orange-600 text-white flex items-center justify-center overflow-hidden">
+                  {shopInfo?.shop_logo ? (
+                    <ImageWithFallback
+                      src={constructImageUrl(shopInfo.shop_logo)}
+                      alt="Logo shop"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <User className="size-7" />
+                  )}
+                </div>
               </div>
               <div>
                 <p className="text-sm text-slate-500">Tên người bán</p>
@@ -142,6 +169,36 @@ export default function SellerProfile() {
                 <span className="font-medium text-slate-900">Shop</span>
                 <span>{shopLoading ? 'Đang tải...' : profile.shopName}</span>
               </div>
+              {shopInfo?.shop_description ? (
+                <div className="flex items-start gap-2">
+                  <span className="font-medium text-slate-900">Mô tả</span>
+                  <span>{shopInfo.shop_description}</span>
+                </div>
+              ) : null}
+              {shopInfo?.legal_full_name ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-slate-900">Người đại diện</span>
+                  <span>{shopInfo.legal_full_name}</span>
+                </div>
+              ) : null}
+              {shopInfo?.email ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-slate-900">Email shop</span>
+                  <span>{shopInfo.email}</span>
+                </div>
+              ) : null}
+              {shopInfo?.phone ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-slate-900">Điện thoại</span>
+                  <span>{shopInfo.phone}</span>
+                </div>
+              ) : null}
+              {shopInfo?.status ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-slate-900">Trạng thái</span>
+                  <span>{shopInfo.status}</span>
+                </div>
+              ) : null}
               <div className="flex items-center gap-2">
                 <span className="font-medium text-slate-900">Mã shop</span>
                 <span>{shopLoading ? '—' : profile.shopId}</span>

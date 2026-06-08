@@ -25,7 +25,7 @@ export function mapSellerOrderDto(dto: SellerOrderDto): SellerOrder {
     createdAt: Number.isNaN(parsed.getTime()) ? new Date() : parsed,
     totalVnd: dto.total,
     itemCount: dto.items,
-    status: dto.status,
+    status: dto.status.toLowerCase() as SellerOrder['status'],
   };
 }
 

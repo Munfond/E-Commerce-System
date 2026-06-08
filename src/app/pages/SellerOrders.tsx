@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
-import { listSellerOrders, listSellerOrderStatus } from '../api/seller/sellerApi';
+import { listSellerOrders, listSellerOrderStatus, updateSellerOrderStatus } from '../api/seller/sellerApi';
 import { mapSellerOrderDto } from '../mappers/seller';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../components/ui/dialog';
-import type { SellerOrder } from '../types/models/seller';
+import type { SellerOrder, SellerOrderStatus } from '../types/models/seller';
 import type { SellerOrderStatusDto } from '../types/dto/seller';
 
 const tabs = [
   { id: 'all', label: 'Tất cả' },
   { id: 'pending', label: 'Chờ xử lý' },
-  { id: 'shipping', label: 'Đang giao' },
-  { id: 'completed', label: 'Hoàn tất' },
+  { id: 'shipped', label: 'Đã giao' },
+  { id: 'delivered', label: 'Giao thành công' },
   { id: 'cancelled', label: 'Đã huỷ' },
 ] as const;
 
@@ -20,16 +20,20 @@ function formatVND(n: number) {
   return `₫${n.toLocaleString('vi-VN')}`;
 }
 
-function statusPill(status: SellerOrderStatusDto) {
+function statusPill(status: SellerOrderStatus) {
   switch (status) {
     case 'pending':
       return { text: 'Chờ xử lý', cls: 'bg-amber-50 text-amber-800 border-amber-200' };
-    case 'shipping':
-      return { text: 'Đang giao', cls: 'bg-blue-50 text-blue-700 border-blue-200' };
-    case 'completed':
-      return { text: 'Hoàn tất', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    case 'confirmed':
+      return { text: 'Đã xác nhận', cls: 'bg-blue-50 text-blue-700 border-blue-200' };
+    case 'shipped':
+      return { text: 'Đã giao', cls: 'bg-blue-50 text-blue-700 border-blue-200' };
+    case 'delivered':
+      return { text: 'Giao thành công', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
     case 'cancelled':
       return { text: 'Đã huỷ', cls: 'bg-slate-50 text-slate-700 border-slate-200' };
+    case 'failed':
+      return { text: 'Thất bại', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
     default:
       return { text: '—', cls: 'bg-slate-50 text-slate-700 border-slate-200' };
   }
@@ -40,22 +44,17 @@ export default function SellerOrders() {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
-  const [items, setItems] = useState<SellerOrder[]>([]);
-  const [total, setTotal] = useState(0);
+  const [allOrders, setAllOrders] = useState<SellerOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [counts, setCounts] = useState<Record<TabId, number>>({
-    all: 0,
-    pending: 0,
-    shipping: 0,
-    completed: 0,
-    cancelled: 0,
-  });
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [selectedOrderStatus, setSelectedOrderStatus] = useState<SellerOrderStatusDto | null>(null);
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState<SellerOrderStatus | null>(null);
+  const [statusDialogValue, setStatusDialogValue] = useState<SellerOrderStatusDto>('PENDING');
   const [statusLoading, setStatusLoading] = useState(false);
+  const [statusSubmitLoading, setStatusSubmitLoading] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusSubmitError, setStatusSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -69,13 +68,12 @@ export default function SellerOrders() {
       try {
         const res = await listSellerOrders({
           q: q || undefined,
-          status: tab,
+          status: 'all',
           page,
           pageSize,
         });
         if (!alive) return;
-        setItems(res.data.items.map(mapSellerOrderDto));
-        setTotal(res.data.total);
+        setAllOrders(res.data.items.map(mapSellerOrderDto));
       } catch {
         if (!alive) return;
         setError('Không tải được danh sách đơn hàng.');
@@ -87,46 +85,20 @@ export default function SellerOrders() {
     return () => {
       alive = false;
     };
-  }, [tab, q, page, pageSize]);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const [all, pending, shipping, completed, cancelled] = await Promise.all([
-          listSellerOrders({ status: 'all', page: 1, pageSize: 1 }),
-          listSellerOrders({ status: 'pending', page: 1, pageSize: 1 }),
-          listSellerOrders({ status: 'shipping', page: 1, pageSize: 1 }),
-          listSellerOrders({ status: 'completed', page: 1, pageSize: 1 }),
-          listSellerOrders({ status: 'cancelled', page: 1, pageSize: 1 }),
-        ]);
-        if (!alive) return;
-        setCounts({
-          all: all.data.total,
-          pending: pending.data.total,
-          shipping: shipping.data.total,
-          completed: completed.data.total,
-          cancelled: cancelled.data.total,
-        });
-      } catch {
-        // ignore counts failure
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+  }, [q, page, pageSize]);
 
   async function openStatusDialog(orderId: string) {
     setSelectedOrderId(orderId);
     setSelectedOrderStatus(null);
     setStatusError(null);
+    setStatusSubmitError(null);
     setStatusLoading(true);
     setStatusDialogOpen(true);
 
     try {
       const res = await listSellerOrderStatus(orderId);
       setSelectedOrderStatus(res.data.status);
+      setStatusDialogValue(res.data.status.toUpperCase() as SellerOrderStatusDto);
     } catch {
       setStatusError('Không lấy được trạng thái đơn hàng.');
     } finally {
@@ -134,7 +106,55 @@ export default function SellerOrders() {
     }
   }
 
+  const filteredOrders = useMemo(
+    () => (tab === 'all' ? allOrders : allOrders.filter((order) => order.status === tab)),
+    [allOrders, tab]
+  );
+
+  const counts = useMemo(
+    () => ({
+      all: allOrders.length,
+      pending: allOrders.filter((order) => order.status === 'pending').length,
+      shipped: allOrders.filter((order) => order.status === 'shipped').length,
+      delivered: allOrders.filter((order) => order.status === 'delivered').length,
+      cancelled: allOrders.filter((order) => order.status === 'cancelled').length,
+    }),
+    [allOrders]
+  );
+
+  const total = filteredOrders.length;
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
+
+  const statusOptions: Array<{ value: SellerOrderStatusDto; label: string }> = [
+    { value: 'PENDING', label: 'Chờ xử lý' },
+    { value: 'CONFIRMED', label: 'Đã xác nhận' },
+    { value: 'SHIPPED', label: 'Đã giao' },
+    { value: 'DELIVERED', label: 'Giao thành công' },
+    { value: 'CANCELLED', label: 'Đã hủy' },
+    { value: 'FAILED', label: 'Thất bại' },
+  ];
+
+  async function submitStatusUpdate() {
+    if (!selectedOrderId) {
+      setStatusSubmitError('Không có đơn hàng để cập nhật.');
+      return;
+    }
+
+    setStatusSubmitLoading(true);
+    setStatusSubmitError(null);
+
+    try {
+      await updateSellerOrderStatus(selectedOrderId, statusDialogValue);
+      setStatusSubmitLoading(false);
+      const normalized = statusDialogValue.toLowerCase() as SellerOrderStatus;
+      setSelectedOrderStatus(normalized);
+      setAllOrders((current) => current.map((item) => (item.id === selectedOrderId ? { ...item, status: normalized } : item)));
+      setStatusDialogOpen(false);
+    } catch {
+      setStatusSubmitLoading(false);
+      setStatusSubmitError('Cập nhật trạng thái thất bại.');
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -157,10 +177,10 @@ export default function SellerOrders() {
                   ? counts.all
                   : t.id === 'pending'
                     ? counts.pending
-                    : t.id === 'shipping'
-                      ? counts.shipping
-                      : t.id === 'completed'
-                        ? counts.completed
+                    : t.id === 'shipped'
+                      ? counts.shipped
+                      : t.id === 'delivered'
+                        ? counts.delivered
                         : counts.cancelled;
               return (
                 <button
@@ -228,14 +248,14 @@ export default function SellerOrders() {
                       Đang tải...
                     </td>
                   </tr>
-                ) : items.length === 0 ? (
+                ) : filteredOrders.length === 0 ? (
                   <tr>
                     <td className="px-4 py-6 text-slate-500" colSpan={7}>
                       Không có đơn hàng.
                     </td>
                   </tr>
                 ) : (
-                  items.map((o) => {
+                  filteredOrders.map((o) => {
                     const st = statusPill(o.status);
                   return (
                     <tr key={o.id} className="hover:bg-slate-50">
@@ -255,7 +275,7 @@ export default function SellerOrders() {
                           onClick={() => openStatusDialog(o.id)}
                           className="text-orange-700 hover:text-orange-800 font-semibold text-xs"
                         >
-                          Xem trạng thái
+                          Cập nhật trạng thái
                         </button>
                         <button className="text-slate-600 hover:text-slate-900 font-semibold text-xs">
                           Xem chi tiết
@@ -319,10 +339,38 @@ export default function SellerOrders() {
               <div>Không có trạng thái để hiển thị.</div>
             )}
           </div>
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-800">
+            <p className="text-sm text-slate-700">
+              Chọn trạng thái mới cho đơn hàng và nhấn nút Cập nhật bên dưới.
+            </p>
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-slate-700">Cập nhật trạng thái</label>
+            <select
+              value={statusDialogValue}
+              onChange={(e) => setStatusDialogValue(e.target.value as SellerOrderStatusDto)}
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            >
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {statusSubmitError && <div className="mt-2 text-rose-700">{statusSubmitError}</div>}
+          </div>
           <DialogFooter>
             <DialogClose className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
               Đóng
             </DialogClose>
+            <button
+              type="button"
+              disabled={statusSubmitLoading || statusLoading}
+              onClick={submitStatusUpdate}
+              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
+            >
+              {statusSubmitLoading ? 'Đang cập nhật...' : 'Cập nhật'}
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

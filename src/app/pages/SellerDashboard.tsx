@@ -1,17 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { IMAGE_BASE_URL } from '../api/config';
-import { listSellerShopProducts } from '../api/seller/sellerApi';
+import { createSellerShopProduct, listSellerProducts, listSellerShopProducts } from '../api/seller/sellerApi';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../components/ui/dialog';
 import type { SellerShopProduct } from '../types/models/seller';
 
 const tabs = [
   { id: 'all', label: 'Tất cả' },
-  { id: 'active', label: 'Đang hoạt động' },
-  { id: 'violation', label: 'Vi phạm' },
-  { id: 'pending', label: 'Chờ duyệt' },
-  { id: 'draft', label: 'Chưa được đăng' },
 ] as const;
 
 type TabId = (typeof tabs)[number]['id'];
@@ -27,26 +24,39 @@ function constructImageUrl(filePath?: string) {
 export default function SellerDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabId>('all');
-  const [q, setQ] = useState('');
-  const [category, setCategory] = useState('');
-  const [brand, setBrand] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [items, setItems] = useState<SellerShopProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [counts, setCounts] = useState<Record<TabId, number>>({
-    all: 0,
-    active: 0,
-    violation: 0,
-    pending: 0,
-    draft: 0,
-  });
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createDescription, setCreateDescription] = useState('');
+  const [createBrand, setCreateBrand] = useState('');
+  const [createCategory, setCreateCategory] = useState('');
+  const [createVariants, setCreateVariants] = useState([
+    { name: 'Default', input_price: 0, sale_price: 0, stock: 0 },
+  ]);
+  const [createProductImages, setCreateProductImages] = useState<File[]>([]);
+  const [createImagePreviews, setCreateImagePreviews] = useState<string[]>([]);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     setPage(1);
-  }, [tab, q, category, brand]);
+  }, [tab]);
+
+  useEffect(() => {
+    const previews = createProductImages.map((file) => URL.createObjectURL(file));
+    setCreateImagePreviews(previews);
+
+    return () => {
+      previews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [createProductImages]);
 
   useEffect(() => {
     let alive = true;
@@ -55,18 +65,16 @@ export default function SellerDashboard() {
     (async () => {
       try {
         const res = await listSellerShopProducts({
-          q: q || undefined,
           status: tab,
           page,
           pageSize,
-          brand: brand || undefined,
-          categoryId: category || undefined,
         });
         if (!alive) return;
         setItems(
           res.data.products.map((product) => ({
             id: product.id,
             name: product.name,
+            description: product.description ?? '',
             brand: product.brand ?? 'Không xác định',
             soldCount: product.sold_count ?? 0,
             categoryId: product.category_id,
@@ -85,35 +93,8 @@ export default function SellerDashboard() {
     return () => {
       alive = false;
     };
-  }, [tab, q, category, brand, page, pageSize]);
+  }, [tab, q, category, brand, page, pageSize, refreshKey]);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const [all, active, violation, pending, draft] = await Promise.all([
-          listSellerProducts({ status: 'all', page: 1, pageSize: 1 }),
-          listSellerProducts({ status: 'active', page: 1, pageSize: 1 }),
-          listSellerProducts({ status: 'violation', page: 1, pageSize: 1 }),
-          listSellerProducts({ status: 'pending', page: 1, pageSize: 1 }),
-          listSellerProducts({ status: 'draft', page: 1, pageSize: 1 }),
-        ]);
-        if (!alive) return;
-        setCounts({
-          all: all.data.total,
-          active: active.data.total,
-          violation: violation.data.total,
-          pending: pending.data.total,
-          draft: draft.data.total,
-        });
-      } catch {
-        // ignore counts failure
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
@@ -123,41 +104,11 @@ export default function SellerDashboard() {
         <Link to="/" className="hover:text-orange-600">Trang chủ</Link>
         <span className="mx-2">›</span>
         <span className="text-slate-700">Sản phẩm</span>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-xl">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
-          <div className="text-lg font-semibold text-slate-900">Sản phẩm</div>
-          <div className="flex items-center gap-2">
-            <button className="h-9 px-3 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50">
-              Công cụ xử lý hàng loạt
-            </button>
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => navigate('/seller/products/add')}
-              className="h-9 px-3 rounded-lg bg-orange-600 text-white font-semibold hover:bg-orange-700 inline-flex items-center gap-2"
-            >
-              <Plus className="size-4" />
-              Thêm 1 sản phẩm mới
-            </motion.button>
-          </div>
-        </div>
-
         <div className="px-5 pt-4">
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-100">
             {tabs.map((t) => {
               const active = tab === t.id;
-              const badge =
-                t.id === 'all'
-                  ? counts.all
-                  : t.id === 'active'
-                    ? counts.active
-                    : t.id === 'violation'
-                      ? counts.violation
-                      : t.id === 'pending'
-                        ? counts.pending
-                        : counts.draft;
+              const badge = total;
               return (
                 <button
                   key={t.id}
@@ -176,7 +127,7 @@ export default function SellerDashboard() {
                         active ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-slate-50 text-slate-600 border-slate-200',
                       ].join(' ')}
                     >
-                      {badge}
+                      {total.toLocaleString('vi-VN')}
                     </span>
                   </span>
                   {active && <div className="absolute left-0 right-0 bottom-0 h-0.5 bg-orange-600" />}
@@ -186,43 +137,15 @@ export default function SellerDashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 py-4">
-            <div className="lg:col-span-5">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Tìm kiếm Sản phẩm, Tên sản phẩm, SKU, Mã sản phẩm"
-                  className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-            <div className="lg:col-span-3">
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-slate-300 bg-white text-slate-800 outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            <div className="lg:col-span-10" />
+            <div className="lg:col-span-2 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
               >
-                <option value="">Tìm theo Ngành hàng</option>
-                <option value="fashion">Thời trang</option>
-                <option value="tech">Công nghệ</option>
-                <option value="home">Nhà cửa</option>
-              </select>
-            </div>
-            <div className="lg:col-span-3">
-              <select
-                value={brand}
-                onChange={(e) => setBrand(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-slate-300 bg-white text-slate-800 outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              >
-                <option value="">Tìm theo Loại đăng bán sản phẩm</option>
-                <option value="normal">Bán thường</option>
-                <option value="deal">Deal</option>
-              </select>
-            </div>
-            <div className="lg:col-span-1 flex items-center gap-2">
-              <button className="h-10 px-3 rounded-lg bg-orange-600 text-white font-semibold hover:bg-orange-700">
-                Áp dụng
+                <Plus className="h-4 w-4" />
+                Tạo sản phẩm mới
               </button>
             </div>
           </div>
@@ -294,10 +217,15 @@ export default function SellerDashboard() {
                       <td className="px-4 py-4 text-slate-800">{p.soldCount.toLocaleString('vi-VN')}</td>
                       <td className="px-4 py-4">
                         <div className="flex flex-col gap-2 text-xs">
-                          <button className="text-orange-700 hover:text-orange-800 font-semibold text-left">
-                            Cập nhật
-                          </button>
-                          <button className="text-slate-600 hover:text-slate-800 font-semibold text-left">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const id = p.id ? String(p.id) : '';
+                              if (!id) return;
+                              navigate(`/seller/products/${id}`);
+                            }}
+                            className="text-slate-600 hover:text-slate-800 font-semibold text-left"
+                          >
                             Chi tiết
                           </button>
                         </div>
@@ -312,6 +240,234 @@ export default function SellerDashboard() {
           <div className="text-xs text-slate-500 mt-3">
             Đây là UI demo theo format bạn gửi. Khi nối API, mình sẽ map dữ liệu thật vào bảng và bộ lọc.
           </div>
+
+
+
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="max-w-lg p-6">
+              <DialogHeader>
+                <DialogTitle>Tạo sản phẩm mới</DialogTitle>
+                <DialogDescription>Gửi lên backend theo body `productData`, `variants`, `variant_files`, `product_images`.</DialogDescription>
+              </DialogHeader>
+
+              <div className="mt-4 space-y-3">
+                {createError && <div className="text-rose-700">{createError}</div>}
+                <div>
+                  <label className="text-sm text-slate-700">Tên sản phẩm</label>
+                  <input
+                    value={createName}
+                    onChange={(e) => setCreateName(e.target.value)}
+                    className="w-full mt-1 p-2 border rounded-lg"
+                    placeholder="Tên sản phẩm"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700">Mô tả</label>
+                  <textarea
+                    value={createDescription}
+                    onChange={(e) => setCreateDescription(e.target.value)}
+                    className="w-full mt-1 p-2 border rounded-lg"
+                    placeholder="Mô tả sản phẩm"
+                    rows={4}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700">Thương hiệu</label>
+                  <input
+                    value={createBrand}
+                    onChange={(e) => setCreateBrand(e.target.value)}
+                    className="w-full mt-1 p-2 border rounded-lg"
+                    placeholder="Ví dụ: Macbook"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-700">Danh mục</label>
+                  <input
+                    value={createCategory}
+                    onChange={(e) => setCreateCategory(e.target.value)}
+                    className="w-full mt-1 p-2 border rounded-lg"
+                    placeholder="ID danh mục hoặc tên danh mục"
+                  />
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-semibold text-slate-800">Thông tin variants</div>
+                    <button
+                      type="button"
+                      onClick={() => setCreateVariants((prev) => [...prev, { name: 'Variant mới', input_price: 0, sale_price: 0, stock: 0 }])}
+                      className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Thêm variant
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {createVariants.map((variant, index) => (
+                      <div key={index} className="grid gap-3 sm:grid-cols-5 items-end">
+                        <div className="sm:col-span-2">
+                          <label className="text-sm text-slate-700">Tên variant</label>
+                          <input
+                            value={variant.name}
+                            onChange={(e) =>
+                              setCreateVariants((prev) =>
+                                prev.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, name: e.target.value } : item
+                                )
+                              )
+                            }
+                            className="w-full mt-1 p-2 border rounded-lg"
+                            placeholder="Silver"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm text-slate-700">Giá nhập</label>
+                          <input
+                            type="number"
+                            value={variant.input_price}
+                            onChange={(e) =>
+                              setCreateVariants((prev) =>
+                                prev.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, input_price: Number(e.target.value) }
+                                    : item
+                                )
+                              )
+                            }
+                            className="w-full mt-1 p-2 border rounded-lg"
+                            placeholder="24890000"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm text-slate-700">Giá bán</label>
+                          <input
+                            type="number"
+                            value={variant.sale_price}
+                            onChange={(e) =>
+                              setCreateVariants((prev) =>
+                                prev.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, sale_price: Number(e.target.value) }
+                                    : item
+                                )
+                              )
+                            }
+                            className="w-full mt-1 p-2 border rounded-lg"
+                            placeholder="24990000"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm text-slate-700">Số lượng</label>
+                          <input
+                            type="number"
+                            value={variant.stock}
+                            onChange={(e) =>
+                              setCreateVariants((prev) =>
+                                prev.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, stock: Number(e.target.value) }
+                                    : item
+                                )
+                              )
+                            }
+                            className="w-full mt-1 p-2 border rounded-lg"
+                            placeholder="50"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCreateVariants((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                          }
+                          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="text-sm font-semibold text-slate-800 mb-2">Ảnh sản phẩm</div>
+                  <label className="block text-sm text-slate-600 mb-2">Upload tối đa 5 ảnh</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []).slice(0, 5);
+                      setCreateProductImages(files);
+                    }}
+                    className="w-full text-sm text-slate-700"
+                  />
+                  {createImagePreviews.length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {createImagePreviews.map((preview, index) => (
+                        <div key={preview} className="rounded-lg border border-slate-200 overflow-hidden">
+                          <img src={preview} alt={`Preview ${index + 1}`} className="h-24 w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter>
+                <DialogClose asChild>
+                  <button className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-semibold">Hủy</button>
+                </DialogClose>
+                <button
+                  type="button"
+                  disabled={createLoading}
+                  onClick={async () => {
+                    if (!createName.trim() || !createDescription.trim() || !createBrand.trim() || !createCategory.trim()) {
+                      setCreateError('Vui lòng điền đủ tên, mô tả, thương hiệu và danh mục.');
+                      return;
+                    }
+                    if (createVariants.some((variant) => !variant.name.trim())) {
+                      setCreateError('Tên variant không được để trống.');
+                      return;
+                    }
+                    if (createVariants.some((variant) => variant.input_price <= 0 || variant.sale_price <= 0 || variant.stock < 0)) {
+                      setCreateError('Vui lòng nhập thông tin variant hợp lệ.');
+                      return;
+                    }
+                    setCreateLoading(true);
+                    setCreateError(null);
+                    try {
+                      await createSellerShopProduct({
+                        productData: {
+                          name: createName,
+                          description: createDescription,
+                          category_id: createCategory,
+                          brand: createBrand,
+                        },
+                        variants: createVariants,
+                        variant_files: {},
+                        product_images: createProductImages.length > 0 ? createProductImages : undefined,
+                      });
+                      setCreateOpen(false);
+                      setCreateName('');
+                      setCreateDescription('');
+                      setCreateBrand('');
+                      setCreateCategory('');
+                      setCreateVariants([{ name: 'Default', input_price: 0, sale_price: 0, stock: 0 }]);
+                      setCreateProductImages([]);
+                      setCreateImagePreviews([]);
+                      setRefreshKey((current) => current + 1);
+                      setPage(1);
+                    } catch (e: any) {
+                      const msg = e?.message ?? (e?.toString && e.toString()) ?? 'Tạo sản phẩm thất bại';
+                      setCreateError(String(msg));
+                    } finally {
+                      setCreateLoading(false);
+                    }
+                  }}
+                  className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {createLoading ? 'Đang tạo...' : 'Tạo sản phẩm'}
+                </button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <div className="mt-3 flex items-center justify-between text-sm text-slate-600">
             <div className="hidden md:block">

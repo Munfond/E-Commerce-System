@@ -1,5 +1,11 @@
 export type SellerProductStatus = 'active' | 'hidden' | 'violation' | 'pending' | 'draft';
-export type SellerOrderStatus = 'pending' | 'shipping' | 'completed' | 'cancelled';
+export type SellerOrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  | 'failed';
 
 export type SellerProduct = {
   id: string;
@@ -13,6 +19,7 @@ export type SellerProduct = {
 export type SellerShopProduct = {
   id?: string;
   name: string;
+  description?: string;
   brand: string;
   soldCount: number;
   categoryId?: number | string;

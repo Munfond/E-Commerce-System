@@ -1,7 +1,15 @@
 import type { SortDirectionDto } from './common';
 
 export type SellerProductStatusDto = 'active' | 'hidden' | 'violation' | 'pending' | 'draft';
-export type SellerOrderStatusDto = 'pending' | 'shipping' | 'completed' | 'cancelled';
+export type SellerOrderStatusDto =
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'CANCELLED'
+  | 'FAILED';
+
+export type SellerOrderStatus = Lowercase<SellerOrderStatusDto>;
 
 export type SellerProductDto = {
   id: string;
@@ -73,6 +81,14 @@ export type SellerShopRegistrationResponseDto = {
 export type SellerShopInfoDto = {
   id: string;
   shop_name: string;
+  shop_description?: string;
+  legal_full_name?: string;
+  shop_logo?: string;
+  email?: string;
+  phone?: string;
+  status?: string;
+  tax_code?: string;
+  identity_number?: string;
 };
 
 export type SellerShopProductImageDto = {
@@ -82,6 +98,7 @@ export type SellerShopProductImageDto = {
 export type SellerShopProductDto = {
   id?: string;
   name: string;
+  description?: string;
   brand?: string;
   sold_count?: number;
   category_id?: number | string;
@@ -128,7 +145,7 @@ export type ListSellerProductsQueryDto = {
 
 export type ListSellerOrdersQueryDto = {
   q?: string;
-  status?: SellerOrderStatusDto | 'all';
+  status?: SellerOrderStatus | 'all';
   page?: number;
   pageSize?: number;
   sortBy?: 'createdAt' | 'total';
