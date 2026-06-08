@@ -129,14 +129,23 @@ exports.createOrder = async (userId, paymentMethod, shippingAddress) => {
         }
 
         if (!shippingAddress || typeof shippingAddress !== 'string' || shippingAddress.trim().length === 0) {
-            throw new Error('Địa chỉ giao hàng không được để trống');
+            throw new Error('ID địa chỉ giao hàng không được để trống');
         }
 
-        if (shippingAddress.length > 500) {
-            throw new Error('Địa chỉ giao hàng tối đa 500 ký tự');
+        // Fetch cart items automatically from user's cart
+        const cartItems = await cartRepo.getCartItems(userId);
+        
+        if (!cartItems || cartItems.length === 0) {
+            throw new Error('Giỏ hàng trống, không thể tạo đơn hàng');
         }
 
-        const result = await orderRepo.createOrder(userId, paymentMethod, shippingAddress.trim());
+        // Transform cart items to match order repository format
+        const formattedCartItems = cartItems.map(item => ({
+            variant_id: item.variant_id,
+            quantity: item.quantity
+        }));
+
+        const result = await orderRepo.createOrder(userId, formattedCartItems, paymentMethod, shippingAddress.trim());
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi tạo đơn hàng: ${err.message}`);

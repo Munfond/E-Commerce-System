@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const paymentService = require('../services/paymentService');
+const cartRepo = require('./cartRepository');
 
 const orderTable = () => supabase.from('orders');
 const orderItemsTable = () => supabase.from('order_items');
@@ -191,6 +192,9 @@ exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
         .update({ total_amount: totalAmount })
         .eq('id', order.id);
     if (updateError) throw updateError;
+
+    // Clear cart items after successful order creation
+    await cartRepo.clearCart(userId);
 
     return { id: order.id, total_amount: totalAmount };
 };

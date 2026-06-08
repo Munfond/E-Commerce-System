@@ -157,18 +157,19 @@ exports.updateOrderStatus = async (req, res) => {
 /**
  * POST /customer/orders
  * Create new order (checkout)
- * Body: { cart_items, payment_method, shipping_address }
+ * Body: { payment_method, shipping_address }
+ * Cart items are automatically fetched from user's cart
  */
 exports.createOrder = async (req, res) => {
     try {
-        const { cart_items, payment_method, shipping_address } = req.body;
+        const { payment_method, shipping_address } = req.body;
         const userId = req.user.id;
 
-        if (!cart_items || !payment_method || !shipping_address) {
+        if (!payment_method || !shipping_address) {
             return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
         }
 
-        const result = await orderService.createOrder(userId, cart_items, payment_method, shipping_address);
+        const result = await orderService.createOrder(userId, payment_method, shipping_address);
         return res.status(201).json(result);
     } catch (err) {
         return res.status(400).json({ error: err.message });

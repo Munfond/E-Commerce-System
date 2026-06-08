@@ -1,14 +1,21 @@
 const { VNPay, VnpLocale, ProductCode } = require('vnpay');
 
+const secureSecret = process.env.VNPAY_SECURE_SECRET || process.env.VNPAY_HASH_SECRET;
+let vnpayHost = process.env.VNPAY_HOST || 'https://sandbox.vnpayment.vn';
+// Loại bỏ các đường dẫn endpoint thanh toán phổ biến để lấy tên miền gốc
+vnpayHost = vnpayHost
+    .replace('/paymentv2/vpcpay.html', '')
+    .replace('/vpcpay.html', '');
+
 // Kiểm tra env khi khởi động, báo lỗi rõ ràng thay vì crash lúc runtime
-if (!process.env.VNPAY_TMN_CODE || !process.env.VNPAY_SECURE_SECRET) {
-    console.error('[paymentService] Thiếu VNPAY_TMN_CODE hoặc VNPAY_SECURE_SECRET trong .env');
+if (!process.env.VNPAY_TMN_CODE || !secureSecret) {
+    console.error('[paymentService] Thiếu VNPAY_TMN_CODE hoặc VNPAY_SECURE_SECRET/VNPAY_HASH_SECRET trong .env');
 }
 
 const vnpay = new VNPay({
     tmnCode: process.env.VNPAY_TMN_CODE,
-    secureSecret: process.env.VNPAY_SECURE_SECRET,
-    vnpayHost: process.env.VNPAY_HOST || 'https://sandbox.vnpayment.vn',
+    secureSecret: secureSecret,
+    vnpayHost: vnpayHost,
     testMode: process.env.NODE_ENV !== 'production',
 });
 
@@ -20,8 +27,8 @@ const vnpay = new VNPay({
  * @returns {string} URL chuyển hướng thanh toán
  */
 exports.createPaymentUrl = (orderId, amount, ipAddr = '127.0.0.1') => {
-    if (!process.env.VNPAY_TMN_CODE || !process.env.VNPAY_SECURE_SECRET) {
-        throw new Error('Chưa cấu hình VNPAY_TMN_CODE hoặc VNPAY_SECURE_SECRET trong file .env');
+    if (!process.env.VNPAY_TMN_CODE || !secureSecret) {
+        throw new Error('Chưa cấu hình VNPAY_TMN_CODE hoặc VNPAY_SECURE_SECRET/VNPAY_HASH_SECRET trong file .env');
     }
     if (!process.env.VNPAY_RETURN_URL) {
         throw new Error('Chưa cấu hình VNPAY_RETURN_URL trong file .env');
