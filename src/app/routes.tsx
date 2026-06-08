@@ -26,6 +26,7 @@ import SellerOnboardingShipping from "./pages/SellerOnboardingShipping";
 import SellerOnboardingIdentity from "./pages/SellerOnboardingIdentity";
 import SellerOnboardingTax from "./pages/SellerOnboardingTax";
 import SellerOnboardingDone from "./pages/SellerOnboardingDone";
+import ShopDetails from './pages/ShopDetails';
 
 export const router = createBrowserRouter([
   {
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: "products/:id", Component: ProductDetail },
       { path: "search", Component: Search },
       { path: "cart", Component: Cart },
+      { path: "shops/:id", Component: ShopDetails },
       {
         path: "seller",
         Component: SellerGuard,
