@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ChevronDown, SlidersHorizontal, Star, ShoppingCart } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useLocation } from 'react-router';
 import { toast } from 'sonner';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -9,24 +9,114 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../components/ui/dialog';
 import { useCart } from '../contexts/cart';
 import { products, type Product } from '../data/products';
+import { categoryApi, type CategoryProductDto, type CategoryDto } from '../api/categoryApi';
+import { IMAGE_BASE_URL } from '../api/config';
 
-const categories = ['Điện thoại', 'Laptop', 'Tablet', 'Đồng hồ', 'Tai nghe', 'Phụ kiện'];
+// Construct proper image URL from file path
+const constructImageUrl = (filePath: string): string => {
+  if (!filePath) return '';
+  // If it's already a full URL, return as is
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+  // Otherwise, construct the URL from the file path
+  return `${IMAGE_BASE_URL}${filePath}`;
+};
+
+const mapCategoryProduct = (product: CategoryProductDto, defaultCategory: string): Product => {
+  // Extract price from first variant
+  const price = product.product_variants?.[0]?.sale_price ?? 0;
+
+  // Extract first image path and construct full URL
+  const imagePath = product.product_images?.[0]?.file_path ?? '';
+  const imageUrl = constructImageUrl(imagePath);
+  
+  const localProduct = products.find(
+    (item) => String(item.id) === String(product.id) || item.name === product.name
+  );
+
+  return {
+    id: product.id,
+    name: product.name,
+    price,
+    oldPrice: localProduct?.oldPrice,
+    image: imageUrl,
+    rating: localProduct?.rating ?? 0,
+    sold: localProduct?.sold ?? 0,
+    category: localProduct?.category ?? defaultCategory,
+    description: localProduct?.description ?? '',
+  };
+};
 
 export default function ProductList() {
+  const location = useLocation();
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('popular');
   const [open, setOpen] = useState(false);
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
+  const [isLoadingCategory, setIsLoadingCategory] = useState(false);
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
   const { addToCart, buyNow } = useCart();
   const navigate = useNavigate();
 
-  const formatPrice = (price: number) => {
+  // Fetch categories from API on mount
+  useEffect(() => {
+    categoryApi
+      .getCategories()
+      .then((response) => {
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          setCategories(response.data);
+        }
+      })
+      .catch(() => {
+        setCategories([]);
+      });
+  }, []);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const queryCategoryId = searchParams.get('category') ?? '';
+
+    if (!queryCategoryId) {
+      setSelectedCategory('');
+      setCategoryProducts([]);
+      return;
+    }
+
+    // Find category name from fetched categories
+    const category = categories.find((cat) => String(cat.id) === queryCategoryId);
+    const categoryName = category?.name ?? '';
+    setSelectedCategory(categoryName);
+
+    setIsLoadingCategory(true);
+    categoryApi
+      .getCategoryProducts(queryCategoryId)
+      .then((response) => {
+        const items = Array.isArray(response.data?.data)
+          ? response.data.data.map((item) => mapCategoryProduct(item, categoryName))
+          : [];
+        setCategoryProducts(items);
+      })
+      .catch(() => {
+        setCategoryProducts([]);
+      })
+      .finally(() => {
+        setIsLoadingCategory(false);
+      });
+  }, [location.search, categories]);
+
+  const formatPrice = (price: number | undefined) => {
+    if (price === undefined || price === null) return '₫0';
     return '₫' + price.toLocaleString('vi-VN');
   };
 
-  const filteredProducts = products.filter((product) =>
-    selectedCategory ? product.category === selectedCategory : true
-  );
+  const effectiveProducts = categoryProducts.length > 0 ? categoryProducts : products;
+  const filteredProducts = effectiveProducts
+    .filter((product) => product.price !== undefined && product.price !== null)
+    .filter((product) =>
+      selectedCategory ? product.category === selectedCategory : true
+    );
 
   const handleOpenProduct = (product: Product) => {
     setActiveProduct(product);
@@ -58,15 +148,15 @@ export default function ProductList() {
               </button>
               {categories.map((category) => (
                 <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
+                  key={category.id}
+                  onClick={() => navigate(`/products?category=${category.id}`)}
                   className={`px-4 py-2 text-sm rounded-sm flex-shrink-0 transition-colors ${
-                    selectedCategory === category
+                    selectedCategory === category.name
                       ? 'bg-orange-600 text-white'
                       : 'border border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  {category}
+                  {category.name}
                 </button>
               ))}
             </div>
@@ -141,7 +231,7 @@ export default function ProductList() {
                       alt={product.name}
                       className="w-full h-full object-cover"
                     />
-                    {product.oldPrice && (
+                    {product.oldPrice && product.price && (
                       <div className="absolute top-0 right-0 bg-yellow-400 text-xs px-2 py-1 font-semibold">
                         -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%
                       </div>

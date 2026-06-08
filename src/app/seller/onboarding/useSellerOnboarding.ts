@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 
 export type SellerOnboardingData = {
   shopName: string;
+  shopDescription: string;
+  legalFullName: string;
+  identityNumber: string;
+  taxCode: string;
+  receiverName: string;
+  receiverPhone: string;
+  city: string;
+  ward: string;
+  details: string;
   pickupAddress: string;
   email: string;
   phone: string;
@@ -9,7 +18,6 @@ export type SellerOnboardingData = {
   identityFullName: string;
   identityIdNumber: string;
   identityAddress: string;
-  taxCode: string;
   taxCompanyName: string;
 };
 
@@ -17,6 +25,15 @@ const STORAGE_KEY = 'shopviet.sellerOnboarding.v1';
 
 const defaultData: SellerOnboardingData = {
   shopName: '',
+  shopDescription: '',
+  legalFullName: '',
+  identityNumber: '',
+  taxCode: '',
+  receiverName: '',
+  receiverPhone: '',
+  city: '',
+  ward: '',
+  details: '',
   pickupAddress: '',
   email: '',
   phone: '',
@@ -24,7 +41,6 @@ const defaultData: SellerOnboardingData = {
   identityFullName: '',
   identityIdNumber: '',
   identityAddress: '',
-  taxCode: '',
   taxCompanyName: '',
 };
 

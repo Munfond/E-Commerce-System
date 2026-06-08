@@ -15,8 +15,8 @@ type CartContextValue = {
   cartCount: number;
   addToCart: (product: Product, quantity?: number) => void;
   buyNow: (product: Product, quantity?: number) => void;
-  removeFromCart: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  removeFromCart: (productId: number | string) => void;
+  updateQuantity: (productId: number | string, quantity: number) => void;
   clearCart: () => void;
 };
 
@@ -55,7 +55,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           if (Array.isArray(serverItems) && serverItems.length > 0) {
             const mapped: CartItem[] = serverItems
               .map((si) => {
-                // server may return full product snapshot or only productId; prefer product object when present
                 if (si.product && typeof si.product === 'object') {
                   return {
                     product: si.product as Product,
@@ -64,7 +63,27 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                     selectedStorage: si.selectedStorage ?? '',
                   } as CartItem;
                 }
-                return null;
+
+                const productId = si.product_id ?? si.productId ?? si.id;
+                const productName = si.product_name ?? 'Sản phẩm';
+                const image = typeof si.file_path === 'string' ? si.file_path : '';
+                const price = typeof si.price === 'number' ? si.price : 0;
+
+                return {
+                  product: {
+                    id: productId ?? 'unknown',
+                    name: productName,
+                    price,
+                    image,
+                    rating: 0,
+                    sold: 0,
+                    category: 'Khác',
+                    description: '',
+                  },
+                  quantity: Math.max(1, Math.round(si.quantity)),
+                  selectedColor: si.selectedColor ?? '',
+                  selectedStorage: si.selectedStorage ?? '',
+                } as CartItem;
               })
               .filter(Boolean) as CartItem[];
 
@@ -74,7 +93,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (e) {
           // ignore server errors and keep local cart
-          // console.error('Failed to load server cart', e);
         }
       })();
     }
@@ -126,11 +144,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     addToCart(product, quantity);
   };
 
-  const removeFromCart = (productId: number) => {
+  const removeFromCart = (productId: number | string) => {
     setItems((current) => current.filter((item) => item.product.id !== productId));
   };
 
-  const updateQuantity = (productId: number, quantity: number) => {
+  const updateQuantity = (productId: number | string, quantity: number) => {
     setItems((current) =>
       current.map((item) =>
         item.product.id === productId

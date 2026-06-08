@@ -5,6 +5,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Home from "./pages/Home";
 import ProductList from "./pages/ProductList";
 import ProductDetail from "./pages/ProductDetail";
+import Search from "./pages/Search";
 import Cart from "./pages/Cart";
 import NotFound from "./pages/NotFound";
 import SellerDashboard from "./pages/SellerDashboard";
@@ -14,11 +15,12 @@ import SellerOrders from "./pages/SellerOrders";
 import SellerInventory from "./pages/SellerInventory";
 import SellerProfile from "./pages/SellerProfile";
 import AddProduct from "./pages/AddProduct";
+import Orders from "./pages/Orders";
+import OrderDetail from "./pages/OrderDetail";
 import SellerGuard from "./auth/SellerGuard";
 import UserGuard from "./auth/UserGuard";
 import UserProfile from "./pages/UserProfile";
 import SellerOnboardingLayout from "./seller/onboarding/SellerOnboardingLayout";
-import SellerOnboardingIndex from "./pages/SellerOnboardingIndex";
 import SellerOnboardingShop from "./pages/SellerOnboardingShop";
 import SellerOnboardingShipping from "./pages/SellerOnboardingShipping";
 import SellerOnboardingIdentity from "./pages/SellerOnboardingIdentity";
@@ -35,6 +37,7 @@ export const router = createBrowserRouter([
       { path: "forgot-password", Component: ForgotPassword },
       { path: "products", Component: ProductList },
       { path: "products/:id", Component: ProductDetail },
+      { path: "search", Component: Search },
       { path: "cart", Component: Cart },
       {
         path: "seller",
@@ -62,7 +65,7 @@ export const router = createBrowserRouter([
             path: "",
             Component: SellerOnboardingLayout,
             children: [
-              { index: true, Component: SellerOnboardingIndex },
+              { index: true, Component: SellerOnboardingShop },
               { path: "shop", Component: SellerOnboardingShop },
               { path: "shipping", Component: SellerOnboardingShipping },
               { path: "identity", Component: SellerOnboardingIdentity },
@@ -76,6 +79,14 @@ export const router = createBrowserRouter([
         path: "profile",
         Component: UserGuard,
         children: [{ index: true, Component: UserProfile }],
+      },
+      {
+        path: "orders",
+        Component: UserGuard,
+        children: [
+          { index: true, Component: Orders },
+          { path: ":id", Component: OrderDetail },
+        ],
       },
       { path: "*", Component: NotFound },
     ],

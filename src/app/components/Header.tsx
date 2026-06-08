@@ -1,3 +1,4 @@
+import React from 'react';
 import { ShoppingBag, ShoppingCart, Search, Bell, User, LogOut } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
@@ -9,10 +10,20 @@ export default function Header({ cartCount }: { cartCount?: number }) {
   const navigate = useNavigate();
   const cart = cartCount ?? useCart()?.cartCount ?? 0;
   const userName = auth.user?.username ?? auth.user?.email ?? null;
+  const [searchInput, setSearchInput] = React.useState('');
 
   const handleLogout = () => {
     auth.logout();
     navigate('/login', { replace: true });
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const keyword = searchInput.trim();
+    if (keyword) {
+      navigate(`/search?q=${encodeURIComponent(keyword)}`);
+      setSearchInput('');
+    }
   };
 
   return (
@@ -72,16 +83,18 @@ export default function Header({ cartCount }: { cartCount?: number }) {
             </Link>
 
             <div className="flex-1 max-w-3xl">
-              <div className="relative">
+              <form onSubmit={handleSearch} className="relative">
                 <input
                   type="text"
                   placeholder="Tìm kiếm sản phẩm..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="w-full h-12 px-4 pr-20 rounded-sm outline-none text-slate-900 bg-white"
                 />
-                <button className="absolute right-0 top-0 bottom-0 h-full bg-orange-600 hover:bg-orange-700 px-4 text-white transition-colors flex items-center justify-center rounded-r-sm">
+                <button type="submit" className="absolute right-0 top-0 bottom-0 h-full bg-orange-600 hover:bg-orange-700 px-4 text-white transition-colors flex items-center justify-center rounded-r-sm">
                   <Search className="size-4" />
                 </button>
-              </div>
+              </form>
               <div className="flex gap-3 mt-2 text-xs text-white">
                 <a href="#" className="hover:text-orange-100">Áo thun</a>
                 <a href="#" className="hover:text-orange-100">Điện thoại</a>
@@ -97,9 +110,9 @@ export default function Header({ cartCount }: { cartCount?: number }) {
                 className="text-white bg-white/10 hover:bg-white/20 rounded-sm px-4 h-12 flex items-center justify-center"
               >
                 <ShoppingCart className="size-7" strokeWidth={1.5} />
-                {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-4 h-4 bg-white text-orange-600 text-xs rounded-full flex items-center justify-center px-1 font-semibold">
-                    {cartCount}
+                {cart > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-5 h-5 bg-white text-orange-600 text-xs rounded-full flex items-center justify-center px-1 font-semibold">
+                    {cart}
                   </span>
                 )}
               </motion.div>

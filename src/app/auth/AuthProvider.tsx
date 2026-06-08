@@ -19,8 +19,10 @@ type LoginInput = { email: string; password: string };
 type RawAuthUser = {
   id?: string;
   username?: string;
-  email: string;
-  roles: string[];
+  fullName?: string;
+  email?: string;
+  roles?: string[];
+  avatarUrl?: string;
 };
 
 type AuthContextValue = AuthState & {
@@ -53,7 +55,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const fetchProfile = async (accessToken: string) => {
       const res = await api.get<AuthUser | { data: AuthUser }>(endpoints.auth.me, { auth: true });
       const payload = 'data' in res.data ? res.data.data : res.data;
-      return payload;
+      const rawUser = payload as RawAuthUser;
+      const role = rawUser.roles?.includes('customer')
+        ? 'user'
+        : rawUser.roles?.includes('seller')
+        ? 'seller'
+        : rawUser.roles?.includes('admin')
+        ? 'admin'
+        : rawUser.email || rawUser.fullName
+        ? getRole()
+        : undefined;
+
+      if (!role) {
+        throw new Error('No user role');
+      }
+
+      const user: AuthUser = {
+        id: rawUser.id ?? '',
+        username: rawUser.username ?? rawUser.fullName,
+        email: rawUser.email ?? '',
+        role,
+        roles: rawUser.roles?.filter((r): r is AuthRole => r === 'user' || r === 'seller' || r === 'admin') ?? [role],
+        avatarUrl: rawUser.avatarUrl,
+      };
+
+      return user;
     };
 
     const refreshAndFetch = async () => {
@@ -149,10 +175,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           : 'user';
         const user: AuthUser = {
           id: rawUser.id ?? '',
-          username: rawUser.username,
-          email: rawUser.email,
+          username: rawUser.username ?? rawUser.fullName,
+          fullName: rawUser.fullName ?? rawUser.username,
+          email: rawUser.email ?? '',
           role,
           roles: rawUser.roles.filter((r): r is AuthRole => r === 'user' || r === 'seller' || r === 'admin'),
+          avatarUrl: rawUser.avatarUrl,
         };
         setAccessToken(token);
         if (refreshToken) {

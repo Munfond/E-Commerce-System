@@ -43,6 +43,28 @@ export type SellerProfileUpsertDto = {
   taxCompanyName?: string;
 };
 
+export type SellerShopRegistrationDto = {
+  shop_info: {
+    shop_name: string;
+    shop_description: string;
+    legal_full_name: string;
+    identity_number: string;
+    tax_code: string;
+  };
+  shop_address: {
+    receiver_name: string;
+    receiver_phone: string;
+    city: string;
+    ward: string;
+    details: string;
+  };
+};
+
+export type SellerShopRegistrationResponseDto = {
+  id: string;
+  status: string;
+};
+
 export type ListSellerProductsQueryDto = {
   q?: string;
   status?: SellerProductStatusDto | 'all';

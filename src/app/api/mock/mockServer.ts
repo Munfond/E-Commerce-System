@@ -6,6 +6,7 @@ import type {
   SellerOrderDto,
   SellerProductDto,
   SellerProfileUpsertDto,
+  SellerShopRegistrationDto,
   SellerProductStatusDto,
   SellerOrderStatusDto,
 } from '../../types/dto/seller';
@@ -198,7 +199,48 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
   }
   
   if (pathname === endpoints.auth.me && method === 'GET') {
-    return { status: 200, body: { id: 'demo-user', email: 'demo@shopviet.local', role: 'seller' } };
+    return { status: 200, body: { id: 'demo-user', fullName: 'Demo User' } };
+  }
+
+  if (pathname === endpoints.auth.me && (method === 'PUT' || method === 'PATCH')) {
+    const payload = options?.body as { username?: string; avatarUrl?: string } | undefined;
+    if (!payload?.username || !payload?.avatarUrl) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'username và avatarUrl là bắt buộc',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        username: payload.username,
+        avatarUrl: payload.avatarUrl,
+      },
+    };
+  }
+
+  if (pathname === endpoints.auth.password && method === 'PUT') {
+    const payload = options?.body as { newPassword?: string } | undefined;
+    if (!payload?.newPassword || typeof payload.newPassword !== 'string') {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'newPassword là bắt buộc',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+      },
+    };
   }
 
   // seller lists
@@ -257,14 +299,165 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     return { status: 200, body: { ok: true } };
   }
 
+  if (pathname === endpoints.seller.shops && method === 'POST') {
+    const payload = options?.body as SellerShopRegistrationDto | undefined;
+    if (
+      !payload?.shop_info?.shop_name ||
+      !payload?.shop_info?.legal_full_name ||
+      !payload?.shop_info?.identity_number ||
+      !payload?.shop_info?.tax_code ||
+      !payload?.shop_address?.receiver_name ||
+      !payload?.shop_address?.receiver_phone ||
+      !payload?.shop_address?.city ||
+      !payload?.shop_address?.ward ||
+      !payload?.shop_address?.details
+    ) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Thiếu thông tin đăng ký shop',
+          details: {
+            fields: {
+              shop_name: !payload?.shop_info?.shop_name ? 'required' : undefined,
+              legal_full_name: !payload?.shop_info?.legal_full_name ? 'required' : undefined,
+              identity_number: !payload?.shop_info?.identity_number ? 'required' : undefined,
+              tax_code: !payload?.shop_info?.tax_code ? 'required' : undefined,
+              receiver_name: !payload?.shop_address?.receiver_name ? 'required' : undefined,
+              receiver_phone: !payload?.shop_address?.receiver_phone ? 'required' : undefined,
+              city: !payload?.shop_address?.city ? 'required' : undefined,
+              ward: !payload?.shop_address?.ward ? 'required' : undefined,
+              details: !payload?.shop_address?.details ? 'required' : undefined,
+            },
+          },
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        id: 'shop-' + Date.now(),
+        status: 'pending',
+      },
+    };
+  }
+
+  // Product search endpoints
+  if (pathname.startsWith(endpoints.products.keywordSearch) && method === 'GET') {
+    const pathParts = pathname.split('/');
+    const keyword = pathParts[pathParts.length - 1];
+    const page = Number((options?.query?.page as number | undefined) ?? url.searchParams.get('page') ?? 1);
+    const limit = Number((options?.query?.limit as number | undefined) ?? url.searchParams.get('limit') ?? 10);
+
+    // Filter products from seller products seed based on keyword
+    let items = productsSeed.filter((p) => like(`${p.id} ${p.name} ${p.sku}`, keyword));
+    
+    // Map seller products to customer product format
+    const customerProducts: any[] = items.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category_id: 1,
+      product_variants: [
+        {
+          id: 'variant-' + p.id,
+          sku: p.sku,
+          name: p.name,
+          stock: p.stock,
+          file_path: 'https://via.placeholder.com/300x300?text=' + encodeURIComponent(p.name),
+          product_id: p.id,
+          sale_price: p.price,
+          input_price: Math.round(p.price * 0.8),
+        },
+      ],
+      product_images: [
+        {
+          file_path: 'https://via.placeholder.com/300x300?text=' + encodeURIComponent(p.name),
+        },
+      ],
+    }));
+
+    const paginatedItems = customerProducts.slice((page - 1) * limit, page * limit);
+    
+    return {
+      status: 200,
+      body: {
+        success: true,
+        data: paginatedItems,
+        pagination: {
+          page,
+          limit,
+          total: customerProducts.length,
+          pages: Math.ceil(customerProducts.length / limit),
+        },
+      },
+    };
+  }
+
   // customer endpoints
   if (pathname === endpoints.customer.cart && method === 'GET') {
     return {
       status: 200,
       body: {
+        success: true,
         cart: {
-          items: [],
+          items: [
+            {
+              id: '4d9c41ad-7d49-4343-8548-9eb12c1534c5',
+              product_id: '34e9e212-c25a-4f51-b3d2-58f700895783',
+              product_name: 'IPhone 14 new official 123',
+              file_path:
+                'https://encrypted-tbn1.gstatic.com/shopping?q=tbn:ANd9GcRr7XNhxYeccF1wMMbIoAkaC4RdtdiSRHvUyO0WhVNDN7vXLoUG4rRnMLcdeDysMG5FhvggvQ0xefYamBjCAVtAn9xDf1twGJWtJIp1CLECGMQOH0TmaiGpe_rlBhNLvXvsHpyjNpY&usqp=CAc',
+              price: 14950000,
+              quantity: 1,
+              subtotal: 14950000,
+            },
+            {
+              id: '8461a546-4e4b-4cf0-b308-91b8b4498a0f',
+              product_id: 'ffa809aa-1538-430e-ad96-4328d0a7c86f',
+              product_name: 'MacBook Air 13 M4 2025 10CPU/8GPU/16GB/256GB',
+              file_path: '2983e694-eed9-49c2-b0d5-4e25d2835091/ffa809aa-1538-430e-ad96-4328d0a7c86f/variant_files-1780235879525-1.webp',
+              price: 24990000,
+              quantity: 2,
+              subtotal: 49980000,
+            },
+          ],
+          total: 64930000,
+          count: 2,
         },
+      },
+    };
+  }
+
+  if (pathname === endpoints.customer.orders && method === 'GET') {
+    return {
+      status: 200,
+      body: [
+        { id: 'C-2026-1001', total: 129000, status: 'completed' },
+        { id: 'C-2026-1002', total: 320000, status: 'shipping' },
+        { id: 'C-2026-1003', total: 780000, status: 'pending' },
+      ],
+    };
+  }
+
+  if (pathname.startsWith('orders/customer/orders/') && method === 'DELETE') {
+    return {
+      status: 200,
+      body: { success: true },
+    };
+  }
+
+  if (pathname.startsWith('orders/customer/orders/') && method === 'GET') {
+    const orderId = pathname.split('/').pop() ?? 'unknown';
+    return {
+      status: 200,
+      body: {
+        id: orderId,
+        history: [
+          { status: 'Đã tiếp nhận', timestamp: '2026-06-07T08:12:00Z', note: 'Đơn hàng đã được tiếp nhận và đang xử lý.' },
+          { status: 'Đang giao', timestamp: '2026-06-07T11:30:00Z', note: 'Đơn hàng đang được vận chuyển đến điểm giao hàng.' },
+          { status: 'Hoàn thành', timestamp: '2026-06-07T15:45:00Z', note: 'Đơn hàng đã được giao thành công.' },
+        ],
       },
     };
   }

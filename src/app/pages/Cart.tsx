@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Trash2, Plus, Minus, Ticket, ShoppingBag } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
@@ -9,14 +10,31 @@ import { useCart } from '../contexts/cart';
 import { api } from '../api/client';
 import { endpoints } from '../api/endpoints';
 import { useAuth } from '../auth/AuthProvider';
+import { orderApi } from '../api/orderApi';
+import { IMAGE_BASE_URL } from '../api/config';
+
+// Construct proper image URL from file path
+const constructImageUrl = (filePath: string): string => {
+  if (!filePath) return '';
+  // If it's already a full URL, return as is
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+  // Otherwise, construct the URL from the file path
+  return `${IMAGE_BASE_URL}${filePath}`;
+};
 
 export default function Cart() {
   const { items: cartItems, updateQuantity, removeFromCart } = useCart();
   const auth = useAuth();
   const [promoCode, setPromoCode] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cod');
   const [selectAll, setSelectAll] = useState(true);
-  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [selectedItems, setSelectedItems] = useState<Array<number | string>>([]);
   const [isLoadingCart, setIsLoadingCart] = useState(false);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (auth.user) {
@@ -40,7 +58,7 @@ export default function Cart() {
     setSelectAll(cartItems.length > 0);
   }, [cartItems]);
 
-  const toggleSelectItem = (id: number) => {
+  const toggleSelectItem = (id: number | string) => {
     if (selectedItems.includes(id)) {
       setSelectedItems(selectedItems.filter((itemId) => itemId !== id));
       setSelectAll(false);
@@ -65,6 +83,45 @@ export default function Cart() {
   const selectedItemsTotal = cartItems
     .filter((item) => selectedItems.includes(item.product.id))
     .reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+
+  const handleCheckout = async () => {
+    if (selectedItems.length === 0) return;
+
+    const cartItemsPayload = cartItems
+      .filter((item) => selectedItems.includes(item.product.id))
+      .map((item) => ({
+        product_id: item.product.id,
+        quantity: item.quantity,
+      }));
+
+    if (cartItemsPayload.length === 0) {
+      setOrderError('Vui lòng chọn sản phẩm để thanh toán.');
+      return;
+    }
+
+    setIsCreatingOrder(true);
+    setOrderError(null);
+
+    try {
+      const response = await orderApi.createCustomerOrder({
+        cart_items: cartItemsPayload,
+        payment_method: paymentMethod,
+      });
+      toast.success(`Đơn hàng ${response.data.id} đã tạo thành công! Tổng ${formatPrice(response.data.total)}`);
+
+      if (selectedItems.length === cartItems.length) {
+        clearCart();
+      } else {
+        selectedItems.forEach((id) => removeFromCart(id));
+      }
+
+      navigate('/orders');
+    } catch (error) {
+      setOrderError('Không thể tạo đơn hàng. Vui lòng thử lại.');
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  };
 
   const formatPrice = (price: number) => {
     return '₫' + price.toLocaleString('vi-VN');
@@ -141,7 +198,7 @@ export default function Cart() {
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="size-20 bg-slate-100 flex-shrink-0">
                       <ImageWithFallback
-                        src={item.product.image}
+                        src={constructImageUrl(item.product.image)}
                         alt={item.product.name}
                         className="w-full h-full object-cover"
                       />
@@ -238,6 +295,18 @@ export default function Cart() {
                   <span className="text-slate-600">Giảm giá</span>
                   <span className="text-slate-900">-₫0</span>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-slate-600">Phương thức thanh toán</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm outline-none focus:border-orange-600"
+                  >
+                    <option value="cod">Tiền mặt khi nhận hàng</option>
+                    <option value="card">Thẻ tín dụng / ghi nợ</option>
+                    <option value="online">Ví điện tử</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex justify-between mb-4">
@@ -248,11 +317,19 @@ export default function Cart() {
                 </div>
               </div>
 
+              {orderError && (
+                <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {orderError}
+                </div>
+              )}
+
               <button
-                disabled={selectedItems.length === 0}
+                type="button"
+                onClick={handleCheckout}
+                disabled={selectedItems.length === 0 || isCreatingOrder}
                 className="w-full bg-orange-600 text-white py-3 hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Mua Hàng ({selectedItems.length})
+                {isCreatingOrder ? `Đang tạo đơn...` : `Mua Hàng (${selectedItems.length})`}
               </button>
             </motion.div>
           </div>

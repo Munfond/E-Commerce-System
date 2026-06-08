@@ -9,6 +9,8 @@ import type {
   SellerOrderDto,
   SellerProductDto,
   SellerProfileUpsertDto,
+  SellerShopRegistrationDto,
+  SellerShopRegistrationResponseDto,
 } from '../../types/dto/seller';
 
 export async function listSellerProducts(params?: ListSellerProductsQueryDto) {
@@ -31,5 +33,9 @@ export async function listSellerInventory(params?: ListSellerInventoryQueryDto) 
 
 export async function upsertSellerProfile(payload: SellerProfileUpsertDto) {
   return api.post<{ ok: true }>(endpoints.seller.profile, payload);
+}
+
+export async function registerSellerShop(payload: SellerShopRegistrationDto) {
+  return api.post<SellerShopRegistrationResponseDto>(endpoints.seller.shops, payload);
 }
 

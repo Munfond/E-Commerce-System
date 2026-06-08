@@ -3,9 +3,9 @@ import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router';
 import { CheckCircle2 } from 'lucide-react';
 import { useSellerOnboarding } from '../seller/onboarding/useSellerOnboarding';
-import { upsertSellerProfile } from '../api/seller/sellerApi';
+import { registerSellerShop } from '../api/seller/sellerApi';
 import { ApiError } from '../api/errors';
-import type { SellerProfileUpsertDto } from '../types/dto/seller';
+import type { SellerShopRegistrationDto } from '../types/dto/seller';
 
 export default function SellerOnboardingDone() {
   const { data, reset } = useSellerOnboarding();
@@ -14,18 +14,22 @@ export default function SellerOnboardingDone() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const payload = useMemo<SellerProfileUpsertDto>(
+  const payload = useMemo<SellerShopRegistrationDto>(
     () => ({
-      shopName: data.shopName,
-      pickupAddress: data.pickupAddress,
-      email: data.email,
-      phone: data.phone,
-      shippingProvider: data.shippingProvider,
-      identityFullName: data.identityFullName,
-      identityIdNumber: data.identityIdNumber,
-      identityAddress: data.identityAddress,
-      taxCode: data.taxCode,
-      taxCompanyName: data.taxCompanyName || undefined,
+      shop_info: {
+        shop_name: data.shopName,
+        shop_description: data.shopDescription,
+        legal_full_name: data.legalFullName,
+        identity_number: data.identityNumber,
+        tax_code: data.taxCode,
+      },
+      shop_address: {
+        receiver_name: data.receiverName,
+        receiver_phone: data.receiverPhone,
+        city: data.city,
+        ward: data.ward,
+        details: data.details,
+      },
     }),
     [data]
   );
@@ -35,7 +39,7 @@ export default function SellerOnboardingDone() {
     setError(null);
     setFieldErrors({});
     try {
-      await upsertSellerProfile(payload);
+      await registerSellerShop(payload);
       reset();
       navigate('/seller/products', { replace: true });
     } catch (e) {

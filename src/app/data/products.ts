@@ -12,7 +12,7 @@ import airpodsProImage from '../../assets/images/airpods-pro.jpg';
 import iphone15PlusImage from '../../assets/images/iphone15-plus.jpg';
 
 export type Product = {
-  id: number;
+  id: number | string;
   name: string;
   price: number;
   oldPrice?: number;

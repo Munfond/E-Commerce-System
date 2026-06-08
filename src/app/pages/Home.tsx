@@ -5,6 +5,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useState, useEffect } from 'react';
+import { categoryApi, type CategoryDto } from '../api/categoryApi';
 import iphoneImage from '../../assets/images/iphone.jpg';
 import macbookImage from '../../assets/images/macbook.jpg';
 import iphone15Image from '../../assets/images/iphone15.jpg';
@@ -15,18 +16,31 @@ import banner1 from '../../assets/images/banner1.jpg';
 import banner2 from '../../assets/images/banner2.jpg';
 import banner3 from '../../assets/images/banner3.jpg';
 
-const categories = [
-  { name: 'Điện Thoại & Phụ Kiện', icon: Smartphone },
-  { name: 'Máy Tính & Laptop', icon: Laptop },
-  { name: 'Đồng Hồ', icon: Watch },
-  { name: 'Máy Ảnh', icon: Camera },
-  { name: 'Âm Thanh', icon: Headphones },
-  { name: 'Loa', icon: Speaker },
-  { name: 'Thời Trang Nam', icon: Shirt },
-  { name: 'Thời Trang Nữ', icon: Shirt },
-  { name: 'Nhà Cửa & Đời Sống', icon: HomeIcon },
-  { name: 'Thiết Bị Điện Tử', icon: Zap },
+const defaultCategories = [
+  { name: 'Điện Thoại & Phụ Kiện', slug: 'dien-thoai-phu-kien', icon: Smartphone },
+  { name: 'Máy Tính & Laptop', slug: 'may-tinh-laptop', icon: Laptop },
+  { name: 'Đồng Hồ', slug: 'dong-ho', icon: Watch },
+  { name: 'Máy Ảnh', slug: 'may-anh', icon: Camera },
+  { name: 'Âm Thanh', slug: 'am-thanh', icon: Headphones },
+  { name: 'Loa', slug: 'loa', icon: Speaker },
+  { name: 'Thời Trang Nam', slug: 'thoi-trang-nam', icon: Shirt },
+  { name: 'Thời Trang Nữ', slug: 'thoi-trang-nu', icon: Shirt },
+  { name: 'Nhà Cửa & Đời Sống', slug: 'nha-cua-doi-song', icon: HomeIcon },
+  { name: 'Thiết Bị Điện Tử', slug: 'thiet-bi-dien-tu', icon: Zap },
 ];
+
+const categoryIconMap: Record<string, typeof Smartphone> = {
+  'dien-thoai-phu-kien': Smartphone,
+  'may-tinh-laptop': Laptop,
+  'dong-ho': Watch,
+  'may-anh': Camera,
+  'am-thanh': Headphones,
+  loa: Speaker,
+  'thoi-trang-nam': Shirt,
+  'thoi-trang-nu': Shirt,
+  'nha-cua-doi-song': HomeIcon,
+  'thiet-bi-dien-tu': Zap,
+};
 
 const featuredProducts = [
   {
@@ -78,6 +92,7 @@ const featuredProducts = [
 
 export default function Home() {
   const [currentBanner, setCurrentBanner] = useState(0);
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
 
   const banners = [
     banner1,
@@ -93,6 +108,19 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [banners.length]);
 
+  useEffect(() => {
+    categoryApi
+      .getCategories()
+      .then((response) => {
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          setCategories(response.data);
+        }
+      })
+      .catch(() => {
+        // keep default categories if the API request fails
+      });
+  }, []);
+
   const nextBanner = () => {
     setCurrentBanner((prev) => (prev + 1) % banners.length);
   };
@@ -103,7 +131,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header cartCount={3} />
+      <Header />
 
       <main className="flex-1">
         <section className="bg-white py-6">
@@ -180,21 +208,24 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4">
             <h2 className="text-slate-500 text-sm uppercase mb-4">DANH MỤC</h2>
             <div className="grid grid-cols-5 md:grid-cols-10 gap-4">
-              {categories.map((category, index) => (
-                <Link to="/products" key={category.name}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
-                    className="text-center"
-                  >
-                    <div className="aspect-square border-2 border-slate-200 rounded-sm mb-2 flex items-center justify-center hover:border-orange-500 hover:shadow-md transition-all">
-                      <category.icon className="size-8 text-orange-600" strokeWidth={1.5} />
-                    </div>
-                    <p className="text-xs text-slate-700 line-clamp-2">{category.name}</p>
-                  </motion.div>
-                </Link>
-              ))}
+              {categories.map((category, index) => {
+                const Icon = categoryIconMap[category.slug] ?? Package;
+                return (
+                  <Link to={`/products?category=${category.id}`} key={category.id}>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      className="text-center"
+                    >
+                      <div className="aspect-square border-2 border-slate-200 rounded-sm mb-2 flex items-center justify-center hover:border-orange-500 hover:shadow-md transition-all">
+                        <Icon className="size-8 text-orange-600" strokeWidth={1.5} />
+                      </div>
+                      <p className="text-xs text-slate-700 line-clamp-2">{category.name}</p>
+                    </motion.div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </section>
