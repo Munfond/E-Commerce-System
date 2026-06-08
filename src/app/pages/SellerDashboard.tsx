@@ -93,7 +93,7 @@ export default function SellerDashboard() {
     return () => {
       alive = false;
     };
-  }, [tab, q, category, brand, page, pageSize, refreshKey]);
+  }, [tab, page, pageSize, refreshKey]);
 
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
