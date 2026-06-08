@@ -14,6 +14,7 @@ const shopController = {
             }
             const result = await shopService.registerShop(ownerId, shop_info, shop_address, file);
             res.status(201).json({
+                success: true,
                 message: "Đăng ký shop và địa chỉ thành công!",
                 data: result
             });
@@ -28,7 +29,7 @@ const shopController = {
             const ownerId = req.user.id;
             const shop = await shopService.getMyShop(ownerId);
             if (!shop) return res.status(404).json({ error: 'Shop không tồn tại' });
-            res.json(shop);
+            res.json({ success: true, data: shop });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -45,7 +46,7 @@ const shopController = {
             
             const file = req.file;                              
             const updatedShop = await shopService.updateShop(ownerId, updateData, file);
-            res.json({ message: 'Cập nhật thông tin thành công', data: updatedShop });
+            res.json({ success: true, message: 'Cập nhật thông tin thành công', data: updatedShop });
         } catch (error) {
             res.status(400).json({ error: error.message });
         }
@@ -57,7 +58,7 @@ const shopController = {
             const ownerId = req.user.id;
             const { status } = req.body;
             await shopService.updateShopStatus(ownerId, status);
-            res.json({ message: 'Cập nhật trạng thái thành công' });
+            res.json({ success: true, message: 'Cập nhật trạng thái thành công' });
         } catch (error) {
             res.status(400).json({ error: error.message });
         }
@@ -68,7 +69,7 @@ const shopController = {
         try {
             const ownerId = req.user.id;
             const updatedAddress = await shopService.updateAddress(ownerId, req.body);
-            res.json({ message: 'Cập nhật địa chỉ thành công', data: updatedAddress });
+            res.json({ success: true, message: 'Cập nhật địa chỉ thành công', data: updatedAddress });
         } catch (error) {
             res.status(400).json({ error: error.message });
         }
@@ -78,7 +79,7 @@ const shopController = {
     getShops: async (req, res) => {
         try {
             const shops = await shopService.getPublicShops(req.query);
-            res.json(shops);
+            res.json({success: true, data: shops });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -89,7 +90,7 @@ const shopController = {
         try {
             const { id } = req.params;
             const shop = await shopService.getShopById(id);
-            res.json(shop);
+            res.json({success: true, data: shop });
         } catch (error) {
             res.status(404).json({ error: error.message });
         }
