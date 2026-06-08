@@ -1,168 +1,161 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { Product } from '../data/products';
-import { getCartFromServer, replaceCartOnServer, ServerCartItemDto } from '../api/cartApi';
+import { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { 
+  getCartFromServer, 
+  addToCartServer, 
+  updateCartItemQuantityServer, 
+  removeFromCartServer, 
+  clearCartServer,
+  ServerCartResponseDto,
+  ServerCartShopDto,
+  ServerCartItemDto
+} from '../api/cartApi';
 import { getAccessToken } from '../api/authStorage';
 
-export type CartItem = {
-  product: Product;
-  quantity: number;
-  selectedColor?: string;
-  selectedStorage?: string;
-};
-
+// Định nghĩa lại giá trị mà Context này sẽ cung cấp cho toàn App
 type CartContextValue = {
-  items: CartItem[];
-  cartCount: number;
-  addToCart: (product: Product, quantity?: number) => void;
-  buyNow: (product: Product, quantity?: number) => void;
-  removeFromCart: (productId: number | string) => void;
-  updateQuantity: (productId: number | string, quantity: number) => void;
-  clearCart: () => void;
+  cartData: ServerCartResponseDto; // Chứa toàn bộ { shops, cart_total_price, cart_total_items_count }
+  isLoading: boolean;
+  refreshCart: () => Promise<void>;
+  addToCart: (variantId: string, quantity?: number) => Promise<boolean>;
+  updateQuantity: (itemId: string, quantity: number) => Promise<boolean>;
+  removeFromCart: (itemId: string) => Promise<boolean>;
+  clearCart: () => Promise<boolean>;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-const STORAGE_KEY = 'shopviet_cart_items';
-
-function normalizeCart(items: CartItem[]): CartItem[] {
-  return items.map((item) => ({
-    ...item,
-    quantity: Math.max(1, Math.round(item.quantity)),
-  }));
-}
+const DEFAULT_CART_STATE: ServerCartResponseDto = {
+  shops: [],
+  cart_total_price: 0,
+  cart_total_items_count: 0
+};
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [cartData, setCartData] = useState<ServerCartResponseDto>(DEFAULT_CART_STATE);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const isAuthenticated = Boolean(getAccessToken());
 
-  useEffect(() => {
-    // Always load local copy first for offline/guest experience
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as CartItem[];
-        setItems(normalizeCart(parsed));
-      }
-    } catch {
-      setItems([]);
-    }
-
-    // If user is authenticated, try to fetch server-side cart and prefer it when available
-    if (isAuthenticated) {
-      (async () => {
-        try {
-          const serverItems = await getCartFromServer();
-          if (Array.isArray(serverItems) && serverItems.length > 0) {
-            const mapped: CartItem[] = serverItems
-              .map((si) => {
-                if (si.product && typeof si.product === 'object') {
-                  return {
-                    product: si.product as Product,
-                    quantity: Math.max(1, Math.round(si.quantity)),
-                    selectedColor: si.selectedColor ?? '',
-                    selectedStorage: si.selectedStorage ?? '',
-                  } as CartItem;
-                }
-
-                const productId = si.product_id ?? si.productId ?? si.id;
-                const productName = si.product_name ?? 'Sản phẩm';
-                const image = typeof si.file_path === 'string' ? si.file_path : '';
-                const price = typeof si.price === 'number' ? si.price : 0;
-
-                return {
-                  product: {
-                    id: productId ?? 'unknown',
-                    name: productName,
-                    price,
-                    image,
-                    rating: 0,
-                    sold: 0,
-                    category: 'Khác',
-                    description: '',
-                  },
-                  quantity: Math.max(1, Math.round(si.quantity)),
-                  selectedColor: si.selectedColor ?? '',
-                  selectedStorage: si.selectedStorage ?? '',
-                } as CartItem;
-              })
-              .filter(Boolean) as CartItem[];
-
-            if (mapped.length > 0) {
-              setItems(normalizeCart(mapped));
-            }
-          }
-        } catch (e) {
-          // ignore server errors and keep local cart
-        }
-      })();
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-
-    // If authenticated, sync changes up to server (debounced)
+  // Hàm chủ động kéo dữ liệu mới nhất từ Server về cập nhật State
+  const refreshCart = async () => {
     if (!isAuthenticated) return;
+    try {
+      setIsLoading(true);
+      const serverCart = await getCartFromServer();
+      setCartData(serverCart);
+    } catch (error) {
+      console.error("Failed to fetch cart from server:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    const payload: ServerCartItemDto[] = items.map((it) => ({
-      product: it.product,
-      productId: (it.product as any)?.id,
-      quantity: it.quantity,
-      selectedColor: it.selectedColor,
-      selectedStorage: it.selectedStorage,
-    }));
+  // Tự động load giỏ hàng khi user đăng nhập thành công vào ứng dụng
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshCart();
+    } else {
+      setCartData(DEFAULT_CART_STATE);
+    }
+  }, [isAuthenticated]);
 
-    const t = window.setTimeout(() => {
-      replaceCartOnServer(payload).catch(() => {
-        // swallow errors; optional: show toast
+  /**
+   * 1. Thêm sản phẩm vào giỏ hàng bằng variantId
+   */
+  const addToCart = async (variantId: string, quantity = 1): Promise<boolean> => {
+    if (!isAuthenticated) {
+      // Nếu là Guest (Chưa đăng nhập), bạn có thể hiển thị thông báo bắt buộc login
+      alert("Vui lòng đăng nhập để thực hiện tính năng này");
+      return false;
+    }
+    try {
+      await addToCartServer(variantId, quantity);
+      await refreshCart(); // Kéo lại data mới để đồng bộ UI
+      return true;
+    } catch (error) {
+      console.error("Error adding item to cart:", error);
+      return false;
+    }
+  };
+
+  /**
+   * 2. Cập nhật số lượng dựa trên ITEM_ID (id của hàng trong giỏ)
+   */
+  const updateQuantity = async (itemId: string, quantity: number): Promise<boolean> => {
+    if (quantity < 1) return false;
+    try {
+      // Tối ưu UI (Optimistic Update) bằng cách đổi trực tiếp số lượng ở local trước cho mượt
+      setCartData((prev) => {
+        const updatedShops = prev.shops.map((shop) => {
+          const updatedItems = shop.items.map((item) => {
+            if (item.id === itemId) {
+              return { ...item, quantity, subtotal: item.price * quantity };
+            }
+            return item;
+          });
+          
+          return {
+            ...shop,
+            items: updatedItems,
+            shop_subtotal: updatedItems.reduce((sum, item) => sum + item.subtotal, 0)
+          };
+        });
+
+        return {
+          shops: updatedShops,
+          cart_total_price: updatedShops.reduce((sum, shop) => sum + shop.shop_subtotal, 0),
+          cart_total_items_count: updatedShops.reduce((sum, shop) => sum + shop.items.reduce((s, i) => s + i.quantity, 0), 0)
+        };
       });
-    }, 700);
 
-    return () => window.clearTimeout(t);
-  }, [items]);
-
-  const cartCount = useMemo(
-    () => items.reduce((sum, item) => sum + item.quantity, 0),
-    [items]
-  );
-
-  const addToCart = (product: Product, quantity = 1) => {
-    setItems((current) => {
-      const existing = current.find((item) => item.product.id === product.id);
-      if (existing) {
-        return current.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [...current, { product, quantity, selectedColor: '', selectedStorage: '' }];
-    });
+      // Gửi lệnh lên server đồng bộ ngầm
+      await updateCartItemQuantityServer(itemId, quantity);
+      return true;
+    } catch (error) {
+      console.error("Error updating item quantity:", error);
+      refreshCart(); // Nếu server lỗi thì kéo lại dữ liệu chuẩn để sửa sai UI
+      return false;
+    }
   };
 
-  const buyNow = (product: Product, quantity = 1) => {
-    addToCart(product, quantity);
+  /**
+   * 3. Xóa sản phẩm dựa trên ITEM_ID
+   */
+  const removeFromCart = async (itemId: string): Promise<boolean> => {
+    try {
+      await removeFromCartServer(itemId);
+      await refreshCart();
+      return true;
+    } catch (error) {
+      console.error("Error removing item from cart:", error);
+      return false;
+    }
   };
 
-  const removeFromCart = (productId: number | string) => {
-    setItems((current) => current.filter((item) => item.product.id !== productId));
+  /**
+   * 4. Xóa sạch giỏ hàng
+   */
+  const clearCart = async (): Promise<boolean> => {
+    try {
+      await clearCartServer();
+      setCartData(DEFAULT_CART_STATE);
+      return true;
+    } catch (error) {
+      console.error("Error clearing cart:", error);
+      return false;
+    }
   };
-
-  const updateQuantity = (productId: number | string, quantity: number) => {
-    setItems((current) =>
-      current.map((item) =>
-        item.product.id === productId
-          ? { ...item, quantity: Math.max(1, quantity) }
-          : item
-      )
-    );
-  };
-
-  const clearCart = () => setItems([]);
 
   return (
     <CartContext.Provider
-      value={{ items, cartCount, addToCart, buyNow, removeFromCart, updateQuantity, clearCart }}
+      value={{ 
+        cartData, 
+        isLoading, 
+        refreshCart, 
+        addToCart, 
+        updateQuantity, 
+        removeFromCart, 
+        clearCart 
+      }}
     >
       {children}
     </CartContext.Provider>
