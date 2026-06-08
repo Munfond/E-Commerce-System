@@ -51,7 +51,10 @@ export default function ForgotPassword() {
     }
 
     try {
-      const res = await api.post<{ success: boolean }>(
+      const res = await api.post<{
+        success?: boolean;
+        message?: string;
+      }>(
         endpoints.auth.passwordReset.verify,
         {
           email,
@@ -60,8 +63,11 @@ export default function ForgotPassword() {
         { auth: false }
       );
 
-      if (res.data.success) {
-        setServerMessage('OTP hợp lệ. Vui lòng đặt lại mật khẩu mới.');
+      const isValid = res.data.success !== false;
+      const message = res.data.message || 'OTP hợp lệ. Vui lòng đặt lại mật khẩu mới.';
+
+      if (isValid) {
+        setServerMessage(message);
         setStage('reset');
       } else {
         setError('Xác thực OTP thất bại. Vui lòng thử lại.');
@@ -166,6 +172,16 @@ export default function ForgotPassword() {
                 }
                 className="space-y-5"
               >
+                {error && (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {error}
+                  </div>
+                )}
+                {serverMessage && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {serverMessage}
+                  </div>
+                )}
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
                     Email

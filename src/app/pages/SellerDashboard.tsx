@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { Package, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
-import { listSellerProducts } from '../api/seller/sellerApi';
-import { mapSellerProductDto } from '../mappers/seller';
-import type { SellerProduct } from '../types/models/seller';
-import type { SellerProductStatusDto } from '../types/dto/seller';
+import { IMAGE_BASE_URL } from '../api/config';
+import { listSellerShopProducts } from '../api/seller/sellerApi';
+import type { SellerShopProduct } from '../types/models/seller';
 
 const tabs = [
   { id: 'all', label: 'Tất cả' },
@@ -17,31 +16,12 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]['id'];
 
-function formatPriceVNDLike(value: number) {
-  if (value < 1000) return `₫${value}`;
-  return `₫${value.toLocaleString('vi-VN')}`;
-}
-
-function formatK(value: number) {
-  if (value >= 1000) return `${Math.round(value / 100) / 10}k`;
-  return `${value}`;
-}
-
-function statusLabel(s: SellerProductStatusDto) {
-  switch (s) {
-    case 'active':
-      return { text: 'Đang hoạt động', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-    case 'hidden':
-      return { text: 'Đã ẩn', cls: 'bg-slate-50 text-slate-700 border-slate-200' };
-    case 'violation':
-      return { text: 'Vi phạm', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
-    case 'pending':
-      return { text: 'Chờ duyệt', cls: 'bg-amber-50 text-amber-800 border-amber-200' };
-    case 'draft':
-      return { text: 'Chưa đăng', cls: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
-    default:
-      return { text: '—', cls: 'bg-slate-50 text-slate-700 border-slate-200' };
+function constructImageUrl(filePath?: string) {
+  if (!filePath) return 'https://via.placeholder.com/80?text=Sản+phẩm';
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
   }
+  return `${IMAGE_BASE_URL}${filePath}`;
 }
 
 export default function SellerDashboard() {
@@ -52,7 +32,7 @@ export default function SellerDashboard() {
   const [brand, setBrand] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
-  const [items, setItems] = useState<SellerProduct[]>([]);
+  const [items, setItems] = useState<SellerShopProduct[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,14 +54,25 @@ export default function SellerDashboard() {
     setError(null);
     (async () => {
       try {
-        const res = await listSellerProducts({
+        const res = await listSellerShopProducts({
           q: q || undefined,
           status: tab,
           page,
           pageSize,
+          brand: brand || undefined,
+          categoryId: category || undefined,
         });
         if (!alive) return;
-        setItems(res.data.items.map(mapSellerProductDto));
+        setItems(
+          res.data.products.map((product) => ({
+            id: product.id,
+            name: product.name,
+            brand: product.brand ?? 'Không xác định',
+            soldCount: product.sold_count ?? 0,
+            categoryId: product.category_id,
+            imageUrl: constructImageUrl(product.product_images?.[0]?.file_path),
+          }))
+        );
         setTotal(res.data.total);
       } catch {
         if (!alive) return;
@@ -94,7 +85,7 @@ export default function SellerDashboard() {
     return () => {
       alive = false;
     };
-  }, [tab, q, page, pageSize]);
+  }, [tab, q, category, brand, page, pageSize]);
 
   useEffect(() => {
     let alive = true;
@@ -259,78 +250,60 @@ export default function SellerDashboard() {
                   <th className="w-10 px-4 py-3">
                     <input type="checkbox" className="size-4" />
                   </th>
-                  <th className="px-4 py-3">Tên sản phẩm</th>
+                  <th className="px-4 py-3">Sản phẩm</th>
+                  <th className="px-4 py-3 w-32">Danh mục</th>
+                  <th className="px-4 py-3 w-32">Thương hiệu</th>
                   <th className="px-4 py-3 w-28">Doanh số</th>
-                  <th className="px-4 py-3 w-28">Giá</th>
-                  <th className="px-4 py-3 w-28">Kho hàng</th>
-                  <th className="px-4 py-3 w-40">Tồn kho “Gói Sẵn Giao Nhanh”</th>
                   <th className="px-4 py-3 w-32">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td className="px-4 py-6 text-slate-500" colSpan={7}>
+                    <td className="px-4 py-6 text-slate-500" colSpan={6}>
                       Đang tải...
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-6 text-slate-500" colSpan={7}>
+                    <td className="px-4 py-6 text-slate-500" colSpan={6}>
                       Không có sản phẩm.
                     </td>
                   </tr>
                 ) : (
-                  items.map((p) => {
-                    const st = statusLabel(p.status);
-                    return (
-                      <tr key={p.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-4">
-                          <input type="checkbox" className="size-4" />
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-start gap-3">
-                            <div className="size-10 rounded-lg bg-slate-200 flex items-center justify-center text-slate-500 text-xs font-semibold">
-                              IMG
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={[
-                                    'text-[11px] px-2 h-5 rounded-full border inline-flex items-center',
-                                    st.cls,
-                                  ].join(' ')}
-                                >
-                                  {st.text}
-                                </span>
-                              </div>
-                              <div className="font-semibold text-slate-900 truncate mt-1">{p.name}</div>
-                              <div className="text-xs text-slate-500 mt-0.5">
-                                SKU: {p.sku} · ID: {p.id}
-                              </div>
-                            </div>
+                  items.map((p) => (
+                    <tr key={p.id ?? p.name} className="hover:bg-slate-50">
+                      <td className="px-4 py-4">
+                        <input type="checkbox" className="size-4" />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={constructImageUrl(p.imageUrl)}
+                            alt={p.name}
+                            className="h-14 w-14 rounded-lg object-cover"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 truncate">{p.name}</div>
+                            <div className="text-xs text-slate-500 mt-1">ID: {p.id ?? 'N/A'}</div>
                           </div>
-                        </td>
-                        <td className="px-4 py-4 text-slate-800">{formatK(0)}</td>
-                        <td className="px-4 py-4 text-slate-800">{formatPriceVNDLike(p.priceVnd)}</td>
-                        <td className="px-4 py-4 text-slate-800">{formatK(p.stock)}</td>
-                        <td className="px-4 py-4 text-slate-500">—</td>
-                        <td className="px-4 py-4">
-                          <div className="flex flex-col gap-2 text-xs">
-                            <button className="text-orange-700 hover:text-orange-800 font-semibold text-left">
-                              Cập nhật
-                            </button>
-                            <button className="text-slate-600 hover:text-slate-800 font-semibold text-left">
-                              Quảng cáo
-                            </button>
-                            <button className="text-slate-600 hover:text-slate-800 font-semibold text-left">
-                              Xem thêm
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-slate-800">{p.categoryId ?? 'N/A'}</td>
+                      <td className="px-4 py-4 text-slate-800">{p.brand}</td>
+                      <td className="px-4 py-4 text-slate-800">{p.soldCount.toLocaleString('vi-VN')}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col gap-2 text-xs">
+                          <button className="text-orange-700 hover:text-orange-800 font-semibold text-left">
+                            Cập nhật
+                          </button>
+                          <button className="text-slate-600 hover:text-slate-800 font-semibold text-left">
+                            Chi tiết
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

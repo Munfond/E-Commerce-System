@@ -26,12 +26,21 @@ export const endpoints = {
     customerSearch: 'products/customer/products',
     keywordSearch: 'products/keyword',
   },
+  orders: {
+    customer: 'orders/customer/orders',
+    customerOrder: (orderId: string) => `orders/customer/orders/${orderId}`,
+    seller: 'orders/seller/orders',
+  },
   seller: {
     products: 'seller/products',
-    orders: 'seller/orders',
+    orders: 'orders/seller/orders',
+    orderStatus: (orderId: string) => `orders/seller/orders/${orderId}/status`,
     inventory: 'seller/inventory',
     profile: 'seller/profile',
     shops: 'sellers/shops',
+    shopMe: 'sellers/shops/me',
+    shopProductsMe: '../v2/products/me',
+    shopAddress: 'sellers/shops/address',
   },
 } as const;
 
