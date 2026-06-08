@@ -32,6 +32,7 @@ app.use('/api/v1/sellers', require('./routes/sellerRoutes'));
 // Admin routes
 app.use('/api/v1/admin', require('./routes/adminRoutes'));
 app.use('/api/v1/shops', require('./routes/shopRoutes'));
+app.use('/api/v1/vouchers', require('./routes/voucherRoutes'));
 app.get('/', (req, res) => {
     res.json({ message: "E-Commerce API is running..." });
 });

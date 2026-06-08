@@ -29,12 +29,17 @@ exports.authorizeRole = (requiredRole) => {
         if (!req.user || !req.user.roles) {
             return res.status(401).json({ error: "Bạn chưa đăng nhập hoặc không có quyền." });
         }
+        const rolesToCheck = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
 
-        if (req.user.roles.includes(requiredRole)) {
-            next(); 
+        // Kiểm tra xem trong các role của USER (req.user.roles) 
+        const hasPermission = req.user.roles.some(role => rolesToCheck.includes(role));
+
+        if (hasPermission) {
+            next(); // Thỏa mãn điều kiện -> Cho đi tiếp
         } else {
             return res.status(403).json({ error: "Bạn không có quyền truy cập tài nguyên này." });
         }
+
     };
 };
 
@@ -46,14 +51,5 @@ exports.authorizeAdmin = exports.authorizeRole('admin');
 /**
  * Shortcut cho seller - kiểm tra seller hoặc admin
  */
-exports.authorizeSeller = (req, res, next) => {
-    if (!req.user || !req.user.roles) {
-        return res.status(401).json({ error: "Bạn chưa đăng nhập hoặc không có quyền." });
-    }
-
-    if (req.user.roles.includes('seller') || req.user.roles.includes('admin')) {
-        next();
-    } else {
-        return res.status(403).json({ error: "Bạn không có quyền truy cập tài nguyên này." });
-    }
-};
+exports.authorizeSeller = exports.authorizeRole('seller');
+exports.authorizeSellerOrAdmin = exports.authorizeRole(['seller', 'admin']); 
