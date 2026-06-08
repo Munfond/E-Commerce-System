@@ -61,6 +61,7 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
   // normalize path without base url
   const url = new URL(path, window.location.origin);
   const pathname = url.pathname;
+  const sellerShopProductsPath = new URL(endpoints.seller.shopProductsMe, window.location.origin).pathname;
 
   // auth endpoints (mock)
   if (pathname === endpoints.auth.login && method === 'POST') {
@@ -156,7 +157,84 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
       },
     };
   }
-  
+
+  if (pathname === endpoints.auth.passwordReset.request && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!payload?.email || typeof payload.email !== 'string' || !emailRegex.test(payload.email)) {
+      return {
+        status: 400,
+        body: {
+          code: 'INVALID_EMAIL',
+          message: 'Email không hợp lệ',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        message: 'OTP đã được gửi đến email của bạn.',
+        otpSent: true,
+      },
+    };
+  }
+
+  if (pathname === endpoints.auth.passwordReset.verify && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+
+    if (!payload?.otpCode || !payload?.email) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Thiếu mã OTP hoặc email',
+        },
+      };
+    }
+
+    const isValidOtp = payload.otpCode === '123456';
+    if (!isValidOtp) {
+      return {
+        status: 400,
+        body: {
+          code: 'INVALID_OTP',
+          message: 'Mã OTP không hợp lệ',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        message: 'OTP hợp lệ. Vui lòng đặt lại mật khẩu mới.',
+      },
+    };
+  }
+
+  if (pathname === endpoints.auth.passwordReset.reset && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    if (!payload?.email || !payload?.newPassword) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Email và mật khẩu mới là bắt buộc',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        message: 'Mật khẩu của bạn đã được đặt lại thành công.',
+      },
+    };
+  }
+
   if (pathname === endpoints.auth.verify && method === 'POST') {
     const payload = options?.body as Record<string, unknown> | undefined;
     
@@ -257,6 +335,56 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     return { status: 200, body: paginate(items, page, pageSize) };
   }
 
+  if (pathname === sellerShopProductsPath && method === 'GET') {
+    const q = (options?.query?.q as string | undefined) ?? url.searchParams.get('q') ?? undefined;
+    const page = Number((options?.query?.page as number | undefined) ?? url.searchParams.get('page') ?? 1);
+    const limit = Number((options?.query?.limit as number | undefined) ?? url.searchParams.get('limit') ?? 10);
+    const categoryId = (options?.query?.category_id as string | undefined) ?? url.searchParams.get('category_id') ?? undefined;
+    const brand = (options?.query?.brand as string | undefined) ?? url.searchParams.get('brand') ?? undefined;
+
+    const products = productsSeed.map((product, index) => ({
+      id: product.id,
+      name: product.name,
+      brand: index % 2 === 0 ? 'VietBrand' : 'ShopBrand',
+      sold_count: Math.max(0, Math.round((10000 - product.stock) / 10)),
+      category_id: index % 3 === 0 ? 1 : index % 3 === 1 ? 2 : 3,
+      product_images: [
+        {
+          file_path: `https://via.placeholder.com/120?text=${encodeURIComponent(product.name)}`,
+        },
+      ],
+    }));
+
+    let filtered = products.filter((product) => like(`${product.name} ${product.brand}`, q));
+    if (categoryId) {
+      filtered = filtered.filter((product) => String(product.category_id) === String(categoryId));
+    }
+    if (brand) {
+      filtered = filtered.filter((product) => product.brand.toLowerCase().includes(brand.toLowerCase()));
+    }
+
+    const start = (Math.max(1, page) - 1) * Math.max(1, limit);
+    const paged = filtered.slice(start, start + Math.max(1, limit));
+    return {
+      status: 200,
+      body: {
+        success: true,
+        products: paged.map((product) => ({
+          ...product,
+          product_images: [
+            {
+              file_path: `product_images/${product.id || 'unknown'}-thumb.webp`,
+            },
+          ],
+        })),
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(filtered.length / Math.max(1, limit))),
+      },
+    };
+  }
+
   if (pathname === endpoints.seller.orders && method === 'GET') {
     const q = (options?.query?.q as string | undefined) ?? url.searchParams.get('q') ?? undefined;
     const rawStatus = (options?.query?.status as string | undefined) ?? url.searchParams.get('status') ?? undefined;
@@ -268,6 +396,16 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
       items = items.filter((o) => o.status === rawStatus);
     }
     return { status: 200, body: paginate(items, page, pageSize) };
+  }
+
+  if (pathname === endpoints.orders.seller && method === 'GET') {
+    return {
+      status: 200,
+      body: ordersSeed.map((order) => ({
+        id: order.id,
+        customer_name: order.buyer,
+      })),
+    };
   }
 
   if (pathname === endpoints.seller.inventory && method === 'GET') {
@@ -339,6 +477,90 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
       body: {
         id: 'shop-' + Date.now(),
         status: 'pending',
+      },
+    };
+  }
+
+  if (pathname === endpoints.seller.shopMe && method === 'GET') {
+    return {
+      status: 200,
+      body: {
+        id: 'shop-123',
+        shop_name: 'ShopViet Official',
+      },
+    };
+  }
+
+  if (pathname === endpoints.seller.shopMe && method === 'POST') {
+    const payload = options?.body;
+    let shopName: string | null = null;
+    let shopDescription: string | null = null;
+    let legalFullName: string | null = null;
+
+    if (payload instanceof FormData) {
+      shopName = payload.get('shop_name') as string | null;
+      shopDescription = payload.get('shop_description') as string | null;
+      legalFullName = payload.get('legal_full_name') as string | null;
+    } else {
+      const body = payload as Record<string, unknown> | undefined;
+      shopName = typeof body?.shop_name === 'string' ? body.shop_name : null;
+      shopDescription = typeof body?.shop_description === 'string' ? body.shop_description : null;
+      legalFullName = typeof body?.legal_full_name === 'string' ? body.legal_full_name : null;
+    }
+
+    if (!shopName || !shopDescription || !legalFullName) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Thiếu thông tin shop',
+          details: {
+            fields: {
+              shop_name: !shopName ? 'required' : undefined,
+              shop_description: !shopDescription ? 'required' : undefined,
+              legal_full_name: !legalFullName ? 'required' : undefined,
+            },
+          },
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+      },
+    };
+  }
+
+  if (pathname === endpoints.seller.shopAddress && method === 'GET') {
+    return {
+      status: 200,
+      body: {
+        id: 'shop-123',
+        status: 'OPEN',
+      },
+    };
+  }
+
+  if (pathname === endpoints.seller.shopAddress && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    const status = payload?.status;
+    if (!status || (status !== 'OPEN' && status !== 'CLOSED' && status !== 'MAINTENANCE')) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Trạng thái shop phải là OPEN, CLOSED hoặc MAINTENANCE',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        id: 'shop-123',
+        status,
       },
     };
   }

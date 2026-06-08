@@ -56,12 +56,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await api.get<AuthUser | { data: AuthUser }>(endpoints.auth.me, { auth: true });
       const payload = 'data' in res.data ? res.data.data : res.data;
       const rawUser = payload as RawAuthUser;
-      const role = rawUser.roles?.includes('customer')
-        ? 'user'
-        : rawUser.roles?.includes('seller')
+      const role = rawUser.roles?.includes('seller')
         ? 'seller'
         : rawUser.roles?.includes('admin')
         ? 'admin'
+        : rawUser.roles?.includes('customer')
+        ? 'user'
         : rawUser.email || rawUser.fullName
         ? getRole()
         : undefined;
@@ -166,12 +166,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const token = rawData.accessToken;
         const refreshToken = rawData.refreshToken;
         const rawUser = rawData.user;
-        const role = rawUser.roles.includes('customer')
-          ? 'user'
-          : rawUser.roles.includes('seller')
+        const role = rawUser.roles.includes('seller')
           ? 'seller'
           : rawUser.roles.includes('admin')
           ? 'admin'
+          : rawUser.roles.includes('customer')
+          ? 'user'
           : 'user';
         const user: AuthUser = {
           id: rawUser.id ?? '',

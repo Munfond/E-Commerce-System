@@ -7,6 +7,16 @@ export type CustomerOrderDto = {
   status: string;
 };
 
+export type RawCustomerOrderDto = {
+  id: string;
+  user_id: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  payment_method: string;
+  shop_id: string;
+};
+
 export type OrderHistoryEventDto = Record<string, unknown>;
 
 export type CustomerOrderTrackingDto = {
@@ -25,7 +35,15 @@ export type CreateCustomerOrderResponseDto = {
 };
 
 export const orderApi = {
-  getCustomerOrders: () => api.get<CustomerOrderDto[]>(endpoints.customer.orders, { auth: true }),
+  getCustomerOrders: () =>
+    api.get<RawCustomerOrderDto[]>(endpoints.customer.orders, { auth: true }).then((res) => ({
+      ...res,
+      data: res.data.map((item) => ({
+        id: item.id,
+        total: item.total_amount,
+        status: item.status.toLowerCase(),
+      })),
+    })),
   getCustomerOrder: (orderId: string) =>
     api.get<CustomerOrderTrackingDto>(endpoints.customer.order(orderId), { auth: true }),
   createCustomerOrder: (payload: CreateCustomerOrderDto) =>

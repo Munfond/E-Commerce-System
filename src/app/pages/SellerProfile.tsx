@@ -1,10 +1,24 @@
-import { useMemo } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { User, Mail, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { User, Mail, ShieldCheck, ArrowLeft, Upload } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
+import { getSellerShopInfo, updateSellerShopInfo } from '../api/seller/sellerApi';
+import type { SellerShopInfoDto } from '../types/dto/seller';
 
 export default function SellerProfile() {
   const auth = useAuth();
+  const [shopInfo, setShopInfo] = useState<SellerShopInfoDto | null>(null);
+  const [shopLoading, setShopLoading] = useState(true);
+  const [shopError, setShopError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccess, setEditSuccess] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formState, setFormState] = useState({
+    shopName: '',
+    shopDescription: '',
+    legalFullName: '',
+    shopLogo: null as File | null,
+  });
 
   const profile = useMemo(() => {
     return {
@@ -12,9 +26,70 @@ export default function SellerProfile() {
       email: auth.user?.email ?? 'seller@shopviet.local',
       role: auth.user?.role ?? 'seller',
       memberSince: '2025-08-15',
-      shopName: 'ShopViet Official',
+      shopName: shopInfo?.shop_name ?? 'Đang tải... ',
+      shopId: shopInfo?.id ?? '—',
     };
-  }, [auth.user]);
+  }, [auth.user, shopInfo]);
+
+  useEffect(() => {
+    let alive = true;
+
+    void (async () => {
+      try {
+        const response = await getSellerShopInfo();
+        if (!alive) return;
+        setShopInfo(response.data);
+        setFormState((prev) => ({
+          ...prev,
+          shopName: response.data.shop_name,
+        }));
+      } catch (error) {
+        if (!alive) return;
+        setShopError('Không thể tải thông tin shop.');
+      } finally {
+        if (!alive) return;
+        setShopLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormState((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setFormState((prev) => ({ ...prev, shopLogo: file }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditError(null);
+    setEditSuccess(null);
+    setIsSubmitting(true);
+
+    try {
+      await updateSellerShopInfo({
+        shop_name: formState.shopName,
+        shop_description: formState.shopDescription,
+        legal_full_name: formState.legalFullName,
+        shop_logo: formState.shopLogo ?? undefined,
+      });
+      setEditSuccess('Thông tin shop đã được cập nhật thành công.');
+      if (shopInfo) {
+        setShopInfo({ ...shopInfo, shop_name: formState.shopName });
+      }
+    } catch (error) {
+      setEditError('Không thể cập nhật thông tin shop. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -37,6 +112,12 @@ export default function SellerProfile() {
           </Link>
         </div>
 
+        {shopError && (
+          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {shopError}
+          </div>
+        )}
+
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div className="flex items-center gap-4">
@@ -58,8 +139,12 @@ export default function SellerProfile() {
                 <span>Vai trò: {profile.role}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-medium text-slate-900">Shop:</span>
-                <span>{profile.shopName}</span>
+                <span className="font-medium text-slate-900">Shop</span>
+                <span>{shopLoading ? 'Đang tải...' : profile.shopName}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-slate-900">Mã shop</span>
+                <span>{shopLoading ? '—' : profile.shopId}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium text-slate-900">Tham gia từ:</span>
@@ -69,21 +154,68 @@ export default function SellerProfile() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 p-5">
-            <h2 className="text-sm font-semibold text-slate-900 mb-3">Cài đặt nhanh</h2>
-            <div className="space-y-3 text-sm text-slate-600">
-              <div className="rounded-xl bg-white border border-slate-200 p-4">
-                <p className="font-medium text-slate-900">Hồ sơ cửa hàng</p>
-                <p className="text-slate-500">Cập nhật thông tin liên hệ, địa chỉ, logo.</p>
+            <h2 className="text-sm font-semibold text-slate-900 mb-3">Cập nhật thông tin shop</h2>
+            <form onSubmit={handleSubmit} className="space-y-4 text-sm text-slate-600">
+              {(editError || editSuccess) && (
+                <div className={editError ? 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700' : 'rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'}>
+                  {editError ?? editSuccess}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Tên shop</label>
+                <input
+                  name="shopName"
+                  value={formState.shopName}
+                  onChange={handleInputChange}
+                  placeholder="Nhập tên shop"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
-              <div className="rounded-xl bg-white border border-slate-200 p-4">
-                <p className="font-medium text-slate-900">Bảo mật</p>
-                <p className="text-slate-500">Thay đổi mật khẩu và xác thực hai yếu tố.</p>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Mô tả shop</label>
+                <textarea
+                  name="shopDescription"
+                  value={formState.shopDescription}
+                  onChange={handleInputChange}
+                  rows={4}
+                  placeholder="Mô tả ngắn về shop"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                />
               </div>
-              <div className="rounded-xl bg-white border border-slate-200 p-4">
-                <p className="font-medium text-slate-900">Chính sách giao hàng</p>
-                <p className="text-slate-500">Quản lý đơn vị vận chuyển và cấu hình phí.</p>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Họ tên người đại diện</label>
+                <input
+                  name="legalFullName"
+                  value={formState.legalFullName}
+                  onChange={handleInputChange}
+                  placeholder="Nhập họ tên người đại diện"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
-            </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Logo shop</label>
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-600 hover:border-slate-400 hover:bg-slate-100">
+                  <Upload className="size-4" />
+                  <span>{formState.shopLogo ? formState.shopLogo.name : 'Chọn file logo'}</span>
+                  <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                </label>
+                {formState.shopLogo && (
+                  <div className="mt-2 text-xs text-slate-500">Đã chọn: {formState.shopLogo.name}</div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full rounded-lg bg-orange-600 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Đang lưu...' : 'Lưu thông tin shop'}
+              </button>
+            </form>
           </div>
         </div>
       </div>

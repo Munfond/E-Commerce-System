@@ -10,6 +10,15 @@ export type SellerProduct = {
   status: SellerProductStatus;
 };
 
+export type SellerShopProduct = {
+  id?: string;
+  name: string;
+  brand: string;
+  soldCount: number;
+  categoryId?: number | string;
+  imageUrl?: string;
+};
+
 export type SellerOrder = {
   id: string;
   buyerName: string;

@@ -21,6 +21,11 @@ export type SellerOrderDto = {
   status: SellerOrderStatusDto;
 };
 
+export type SellerOrderSimpleDto = {
+  id: string;
+  customer_name: string;
+};
+
 export type SellerInventoryDto = {
   id: string;
   name: string;
@@ -63,6 +68,53 @@ export type SellerShopRegistrationDto = {
 export type SellerShopRegistrationResponseDto = {
   id: string;
   status: string;
+};
+
+export type SellerShopInfoDto = {
+  id: string;
+  shop_name: string;
+};
+
+export type SellerShopProductImageDto = {
+  file_path: string;
+};
+
+export type SellerShopProductDto = {
+  id?: string;
+  name: string;
+  brand?: string;
+  sold_count?: number;
+  category_id?: number | string;
+  product_images?: SellerShopProductImageDto[];
+};
+
+export type SellerShopProductsResponseDto = {
+  success: true;
+  products: SellerShopProductDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export type ListSellerShopProductsQueryDto = {
+  q?: string;
+  status?: SellerProductStatusDto | 'all';
+  brand?: string;
+  categoryId?: number | string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type SellerShopStatusDto = 'OPEN' | 'CLOSED' | 'MAINTENANCE';
+
+export type SellerShopAddressUpdateDto = {
+  status: SellerShopStatusDto;
+};
+
+export type SellerShopAddressResponseDto = {
+  id: string;
+  status: SellerShopStatusDto;
 };
 
 export type ListSellerProductsQueryDto = {

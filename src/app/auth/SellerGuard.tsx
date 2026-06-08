@@ -12,7 +12,7 @@ export default function SellerGuard() {
     return <Navigate to={`/login?next=${next}`} replace />;
   }
 
-  if (user.role !== 'seller') {
+  if (user.role !== 'seller' && !user.roles?.includes('seller')) {
     return <Navigate to="/" replace />;
   }
 

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
-import { listSellerOrders } from '../api/seller/sellerApi';
+import { listSellerOrders, listSellerOrderStatus } from '../api/seller/sellerApi';
 import { mapSellerOrderDto } from '../mappers/seller';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../components/ui/dialog';
 import type { SellerOrder } from '../types/models/seller';
 import type { SellerOrderStatusDto } from '../types/dto/seller';
 
@@ -50,6 +51,11 @@ export default function SellerOrders() {
     completed: 0,
     cancelled: 0,
   });
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState<SellerOrderStatusDto | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -110,6 +116,23 @@ export default function SellerOrders() {
       alive = false;
     };
   }, []);
+
+  async function openStatusDialog(orderId: string) {
+    setSelectedOrderId(orderId);
+    setSelectedOrderStatus(null);
+    setStatusError(null);
+    setStatusLoading(true);
+    setStatusDialogOpen(true);
+
+    try {
+      const res = await listSellerOrderStatus(orderId);
+      setSelectedOrderStatus(res.data.status);
+    } catch {
+      setStatusError('Không lấy được trạng thái đơn hàng.');
+    } finally {
+      setStatusLoading(false);
+    }
+  }
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize]);
 
@@ -226,8 +249,17 @@ export default function SellerOrders() {
                           {st.text}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
-                        <button className="text-orange-700 hover:text-orange-800 font-semibold text-xs">Xem chi tiết</button>
+                      <td className="px-4 py-4 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => openStatusDialog(o.id)}
+                          className="text-orange-700 hover:text-orange-800 font-semibold text-xs"
+                        >
+                          Xem trạng thái
+                        </button>
+                        <button className="text-slate-600 hover:text-slate-900 font-semibold text-xs">
+                          Xem chi tiết
+                        </button>
                       </td>
                     </tr>
                   );
@@ -265,6 +297,35 @@ export default function SellerOrders() {
           </div>
         </div>
       </div>
+
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent className="max-w-sm p-6">
+          <DialogHeader>
+            <DialogTitle>Trạng thái đơn hàng</DialogTitle>
+            <DialogDescription>
+              {selectedOrderId ? `Mã đơn: ${selectedOrderId}` : 'Chọn đơn hàng để xem trạng thái.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 min-h-[5rem] rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-800">
+            {statusLoading ? (
+              <div>Đang tải trạng thái...</div>
+            ) : statusError ? (
+              <div className="text-rose-700">{statusError}</div>
+            ) : selectedOrderStatus ? (
+              <div className="text-slate-900">
+                Trạng thái hiện tại: <span className="font-semibold text-orange-700">{selectedOrderStatus}</span>
+              </div>
+            ) : (
+              <div>Không có trạng thái để hiển thị.</div>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+              Đóng
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
