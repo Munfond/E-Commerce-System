@@ -1,6 +1,7 @@
 const userRepo = require('../repositories/userRepository');
 const addressRepo = require('../repositories/addressRepository');
 const passwordService = require('../services/passwordService');
+const supabase = require('../config/supabase');
 
 const userController = {
     async getMe (req, res) {

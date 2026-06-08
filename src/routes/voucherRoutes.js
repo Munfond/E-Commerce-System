@@ -11,6 +11,7 @@ router.post('/create', authenticateToken, authorizeSellerOrAdmin, voucherControl
 // 2. Dành cho Khách hàng trải nghiệm mua sắm
 router.post('/save', authenticateToken, voucherController.saveVoucher);
 router.get('/my-wallet', authenticateToken, voucherController.getMyWallet);
+router.get('/my-wallet/:shop_id', authenticateToken, voucherController.getShopVoucherFromMyWallet)
 
 module.exports = router;
 
