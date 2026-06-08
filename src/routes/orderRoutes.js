@@ -5,7 +5,6 @@ const { authenticateToken, authorizeAdmin, authorizeSeller } = require('../middl
 
 // ============================================
 // VNPAY CALLBACK (Public - VNPay gọi trực tiếp, không có auth header)
-// ============================================
 
 // GET /api/v1/orders/vnpay-return
 // VNPay redirect khách về đây sau khi thanh toán
@@ -13,7 +12,6 @@ router.get('/vnpay-return', orderController.vnpayReturn);
 
 // ============================================
 // CUSTOMER ROUTES (Authentication required)
-// ============================================
 
 // GET /api/v1/orders/customer/orders
 router.get('/customer/orders', authenticateToken, orderController.getCustomerOrders);
@@ -32,7 +30,6 @@ router.get('/customer/orders/:id/payment_link', authenticateToken, orderControll
 
 // ============================================
 // SELLER ROUTES (Authentication + Seller role required)
-// ============================================
 
 // GET /api/v1/orders/seller/orders
 router.get('/seller/orders', authenticateToken, authorizeSeller, orderController.getSellerOrders);
@@ -45,7 +42,6 @@ router.patch('/seller/orders/:id/status', authenticateToken, authorizeSeller, or
 
 // ============================================
 // ADMIN ROUTES (Authentication + Admin role required)
-// ============================================
 
 // GET /api/v1/orders/admin/orders
 router.get('/admin/orders', authenticateToken, authorizeAdmin, orderController.getAdminOrders);
