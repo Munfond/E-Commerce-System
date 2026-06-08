@@ -35,5 +35,5 @@ type PaginatedCategoryProducts = {
 export const categoryApi = {
   getCategories: () => api.get<CategoryDto[]>(endpoints.categories.root, { auth: false }),
   getCategoryProducts: (categoryId: string) =>
-    api.get<PaginatedCategoryProducts>(endpoints.categories.products(categoryId), { auth: false }),
+    api.get<PaginatedCategoryProducts>(`https://e-commerce-system-aq0y.onrender.com/api/v1/products/category?category=${categoryId}`, { auth: false }),
 };
