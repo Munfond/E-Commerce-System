@@ -43,18 +43,18 @@ exports.login = async (email, password) => {
     if (!user || !(await bcrypt.compare(password, user.password))) {
         throw new Error('Email hoặc mật khẩu không đúng.');
     }
-    if (user.status !== 'ACTIVE') {
+    if (user.status == 'PENDING') {
         throw new Error('Email không tồn tại hoặc tài khoản chưa được kích hoạt.');
     }
     const roles = await userRepo.getUserRoles(user.id); 
 
-    const accessToken = tokenService.generateAccessToken(user.id, roles);
+    const accessToken = tokenService.generateAccessToken(user.id, roles, user.status);
     const refreshTokenData = await tokenService.createSession(user.id);
 
     return {
         accessToken,
         refreshToken: refreshTokenData.refreshToken,
-        user: { username: user.username, email: user.email, roles }
+        user: { username: user.username, email: user.email, roles, status: user.status }
     };
     
 }

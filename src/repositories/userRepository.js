@@ -187,3 +187,53 @@ exports.updatePasswordById = async (userId, hashedPassword) => {
     if (error) throw error;
     return data;
 };
+
+exports.listUsers = async (roleName = null, status = null) => {
+    let query = supabase
+        .from('user_permissions')
+        .select('user_id, email, username, avatar_url, status, role_name');
+
+    if (roleName !== null) {
+        query = query.eq('role_name', roleName);
+    }
+    if (status !== null) {
+        query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    // --- ĐOẠN XỬ LÝ GỘP ROLE Ở ĐÂY ---
+    const groupedUsers = data.reduce((acc, current) => {
+        const existingUser = acc.find(u => u.user_id === current.user_id);
+        
+        if (existingUser) {
+            if (!existingUser.roles.includes(current.role_name)) {
+                existingUser.roles.push(current.role_name);
+            }
+        } else {
+            const { role_name, ...userWithoutRoleName } = current;
+            acc.push({
+                ...userWithoutRoleName,
+                roles: [role_name]
+            });
+        }
+        return acc;
+    }, []);
+
+    return groupedUsers;
+};
+
+exports.changeUserStatus = async (id, status) => {
+    const { data, error } = await userTable()
+        .update({ 
+            status: status, 
+            updated_at: new Date() 
+        })
+        .eq('id', id)
+        .select('id, email')
+        .single();
+
+    if (error) throw error;
+    return data;
+}

@@ -44,6 +44,25 @@ const adminController = {
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
+    },
+    getAllUsers: async (req, res) => {
+        try {
+            const {role, status} = req.query;
+            const users = await adminService.getAllUsers(role, status);
+            res.json(users);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    },
+    changeUserStatus: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+            await adminService.changeUserStatus(id, status);
+            res.json({ message: `Đã cập nhật trạng thái user thành ${status}` });
+        } catch (error) {
+            res.status(400).json({ error: error.message });
+        }
     }
 };
 
