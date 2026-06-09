@@ -150,7 +150,7 @@ export default function ProductList() {
 
       <main className="flex-1">
         {/* SUB HEADER: THANH CHỌN DANH MỤC */}
-        <div className="bg-white border-b border-slate-200 sticky top-32 z-40">
+        <div className="bg-white border-b border-slate-200 sticky top-28 md:top-32 z-40">
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
               <button className="flex items-center gap-1 px-4 py-2 border border-slate-300 rounded-sm hover:bg-slate-50 flex-shrink-0">
@@ -194,9 +194,9 @@ export default function ProductList() {
         {/* THANH SẮP XẾP SẢN PHẨM */}
         <div className="bg-slate-100 border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 py-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <span className="text-sm text-slate-600">Sắp xếp theo</span>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {['popular', 'latest', 'top-sales'].map((type) => (
                   <button
                     key={type}
@@ -210,8 +210,8 @@ export default function ProductList() {
                     {type === 'popular' ? 'Phổ biến' : type === 'latest' ? 'Mới nhất' : 'Bán chạy'}
                   </button>
                 ))}
-                <div className="relative">
-                  <select className="appearance-none bg-white border border-slate-300 pl-4 pr-10 py-2 text-sm rounded-sm outline-none cursor-pointer text-slate-700">
+                <div className="relative w-full sm:w-auto">
+                  <select className="appearance-none w-full sm:w-auto bg-white border border-slate-300 pl-4 pr-10 py-2 text-sm rounded-sm outline-none cursor-pointer text-slate-700">
                     <option>Giá: Thấp đến cao</option>
                     <option>Giá: Cao đến thấp</option>
                   </select>
@@ -227,7 +227,7 @@ export default function ProductList() {
           {isLoading ? (
             <div className="text-center py-20 text-slate-500 text-sm">Đang tải sản phẩm...</div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3">
               {filteredProducts.map((product, index) => (
                 /* 💡 Chuyển đổi thẻ button cũ thành Link chuyển trang trực tiếp */
                 <Link

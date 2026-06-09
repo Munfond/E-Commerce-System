@@ -215,7 +215,7 @@ export default function Home() {
         <section className="bg-white py-6 mt-6">
           <div className="max-w-7xl mx-auto px-4">
             <h2 className="text-slate-500 text-sm uppercase mb-4">DANH MỤC</h2>
-            <div className="grid grid-cols-5 md:grid-cols-10 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-10 gap-3 sm:gap-4">
               {categories.map((category, index) => {
                 const Icon = categoryIconMap[category.slug] ?? Package;
                 const categoryImage = resolveImageUrl(category.image_url ?? null, CATEGORY_IMAGE_BASE_URL);
