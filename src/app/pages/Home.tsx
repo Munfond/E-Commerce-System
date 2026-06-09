@@ -8,15 +8,19 @@ import { useState, useEffect } from 'react';
 import { categoryApi, type CategoryDto } from '../api/categoryApi';
 import { resolveImageUrl } from '../api/imageUrl';
 import { CATEGORY_IMAGE_BASE_URL } from '../api/config';
-import iphoneImage from '../../assets/images/iphone.jpg';
-import macbookImage from '../../assets/images/macbook.jpg';
-import iphone15Image from '../../assets/images/iphone15.jpg';
-import airpodsImage from '../../assets/images/airpods.jpg';
-import ipadImage from '../../assets/images/ipad.jpg';
-import watchImage from '../../assets/images/watch.jpg';
 import banner1 from '../../assets/images/banner1.jpg';
 import banner2 from '../../assets/images/banner2.jpg';
 import banner3 from '../../assets/images/banner3.jpg';
+import type { CategoryProductDto } from '../api/categoryApi';
+
+type FeaturedProduct = {
+  id: string;
+  name: string;
+  price: number;
+  oldPrice?: number;
+  image: string;
+  sold: number;
+};
 
 const defaultCategories = [
   { name: 'Điện Thoại & Phụ Kiện', slug: 'dien-thoai-phu-kien', icon: Smartphone },
@@ -44,57 +48,26 @@ const categoryIconMap: Record<string, typeof Smartphone> = {
   'thiet-bi-dien-tu': Zap,
 };
 
-const featuredProducts = [
-  {
-    id: 1,
-    name: 'iPhone 16 Pro Max Titan Tự Nhiên 256GB',
-    price: '27.990.000',
-    oldPrice: '29.990.000',
-    image: iphoneImage,
-    sold: 1200,
-  },
-  {
-    id: 2,
-    name: 'MacBook Air M3 13 inch 2024',
-    price: '28.990.000',
-    image: macbookImage,
-    sold: 890,
-  },
-  {
-    id: 3,
-    name: 'iPhone 15 Pro 128GB VN/A',
-    price: '24.990.000',
-    oldPrice: '28.990.000',
-    image: iphone15Image,
-    sold: 2300,
-  },
-  {
-    id: 4,
-    name: 'AirPods Pro Gen 2 USB-C',
-    price: '6.490.000',
-    image: airpodsImage,
-    sold: 450,
-  },
-  {
-    id: 5,
-    name: 'iPad Pro M2 11 inch WiFi 128GB',
-    price: '21.990.000',
-    oldPrice: '24.990.000',
-    image: ipadImage,
-    sold: 670,
-  },
-  {
-    id: 6,
-    name: 'Apple Watch Series 9 GPS 41mm',
-    price: '9.990.000',
-    image: watchImage,
-    sold: 980,
-  },
-];
+const mapFeaturedProduct = (product: CategoryProductDto): FeaturedProduct => {
+  const firstVariant = product.product_variants?.[0];
+  const imagePath = product.product_images?.[0]?.file_path ?? '';
+
+  return {
+    id: product.id,
+    name: product.name,
+    price: firstVariant?.sale_price ?? 0,
+    oldPrice: undefined,
+    image: resolveImageUrl(imagePath),
+    sold: 0,
+  };
+};
 
 export default function Home() {
   const [currentBanner, setCurrentBanner] = useState(0);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
+  const [featuredCategoryName, setFeaturedCategoryName] = useState('');
+  const [featuredCategoryId, setFeaturedCategoryId] = useState<number | null>(null);
 
   const banners = [
     banner1,
@@ -122,6 +95,39 @@ export default function Home() {
         // keep default categories if the API request fails
       });
   }, []);
+
+  useEffect(() => {
+    if (featuredCategoryId !== null || categories.length === 0) return;
+
+    const eligibleCategories = categories.filter((category) => category.id >= 1 && category.id <= 9);
+    const pool = eligibleCategories.length > 0 ? eligibleCategories : categories;
+    if (pool.length === 0) return;
+
+    const randomCategory = pool[Math.floor(Math.random() * pool.length)];
+    setFeaturedCategoryId(randomCategory.id);
+    setFeaturedCategoryName(randomCategory.name);
+  }, [categories, featuredCategoryId]);
+
+  useEffect(() => {
+    if (featuredCategoryId === null) return;
+
+    let alive = true;
+    categoryApi
+      .getCategoryProducts(String(featuredCategoryId))
+      .then((response) => {
+        if (!alive) return;
+        const items = Array.isArray(response.data?.data) ? response.data.data : [];
+        setFeaturedProducts(items.slice(0, 6).map(mapFeaturedProduct));
+      })
+      .catch(() => {
+        if (!alive) return;
+        setFeaturedProducts([]);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [featuredCategoryId]);
 
   const nextBanner = () => {
     setCurrentBanner((prev) => (prev + 1) % banners.length);
@@ -244,7 +250,9 @@ export default function Home() {
         <section className="bg-white py-8 mt-6">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-slate-500 text-sm uppercase">GỢI Ý HÔM NAY</h2>
+              <h2 className="text-slate-500 text-sm uppercase">
+                GỢI Ý HÔM NAY{featuredCategoryName ? ` - ${featuredCategoryName}` : ''}
+              </h2>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
@@ -271,7 +279,7 @@ export default function Home() {
                     <div className="p-2">
                       <h3 className="text-sm text-slate-900 mb-1 line-clamp-2 min-h-10">{product.name}</h3>
                       <div className="flex items-baseline gap-2">
-                        <p className="text-orange-600 font-medium">₫{product.price}</p>
+                        <p className="text-orange-600 font-medium">₫{product.price.toLocaleString('vi-VN')}</p>
                       </div>
                       <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
                         <div className="flex items-center gap-1">

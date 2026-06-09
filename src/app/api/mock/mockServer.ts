@@ -22,10 +22,10 @@ const productsSeed: SellerProductDto[] = [
 ];
 
 const ordersSeed: SellerOrderDto[] = [
-  { id: 'SV-1024', buyer: 'Nguyễn An', createdAt: '2026-04-28', total: 1250000, items: 3, status: 'pending' },
-  { id: 'SV-1023', buyer: 'Trần Minh', createdAt: '2026-04-28', total: 320000, items: 1, status: 'shipping' },
-  { id: 'SV-1022', buyer: 'Lê Hồng', createdAt: '2026-04-27', total: 780000, items: 2, status: 'completed' },
-  { id: 'SV-1021', buyer: 'Phạm Vy', createdAt: '2026-04-26', total: 210000, items: 1, status: 'cancelled' },
+  { id: 'SV-1024', buyer: 'Nguyễn An', createdAt: '2026-04-28', total: 1250000, items: 3, status: 'PENDING' },
+  { id: 'SV-1023', buyer: 'Trần Minh', createdAt: '2026-04-28', total: 320000, items: 1, status: 'SHIPPED' },
+  { id: 'SV-1022', buyer: 'Lê Hồng', createdAt: '2026-04-27', total: 780000, items: 2, status: 'DELIVERED' },
+  { id: 'SV-1021', buyer: 'Phạm Vy', createdAt: '2026-04-26', total: 210000, items: 1, status: 'CANCELLED' },
 ];
 
 const inventorySeed: SellerInventoryDto[] = [
@@ -54,7 +54,7 @@ function isProductStatus(v: unknown): v is SellerProductStatusDto {
 }
 
 function isOrderStatus(v: unknown): v is SellerOrderStatusDto {
-  return v === 'pending' || v === 'shipping' || v === 'completed' || v === 'cancelled';
+  return v === 'PENDING' || v === 'SHIPPED' || v === 'DELIVERED' || v === 'CANCELLED' || v === 'CONFIRMED' || v === 'FAILED';
 }
 
 export async function mockHandle(method: HttpMethod, path: string, options?: RequestOptions): Promise<MockResult | null> {
@@ -677,21 +677,23 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     };
   }
 
-  // Product search endpoints
-  if (pathname.startsWith(endpoints.products.keywordSearch) && method === 'GET') {
+  // Product search/list endpoints
+  if ((pathname === endpoints.products.customerSearch || pathname.startsWith(endpoints.products.keywordSearch)) && method === 'GET') {
     const pathParts = pathname.split('/');
-    const keyword = pathParts[pathParts.length - 1];
+    const keyword = pathname.startsWith(endpoints.products.keywordSearch)
+      ? pathParts[pathParts.length - 1]
+      : String((options?.query?.q as string | undefined) ?? url.searchParams.get('q') ?? '').trim();
     const page = Number((options?.query?.page as number | undefined) ?? url.searchParams.get('page') ?? 1);
     const limit = Number((options?.query?.limit as number | undefined) ?? url.searchParams.get('limit') ?? 10);
 
-    // Filter products from seller products seed based on keyword
-    let items = productsSeed.filter((p) => like(`${p.id} ${p.name} ${p.sku}`, keyword));
-    
-    // Map seller products to customer product format
-    const customerProducts: any[] = items.map((p) => ({
+    // Filter products from seller products seed based on keyword when provided.
+    const items = productsSeed.filter((p) => like(`${p.id} ${p.name} ${p.sku}`, keyword));
+
+    // Map seller products to customer product format.
+    const customerProducts: any[] = items.map((p, index) => ({
       id: p.id,
       name: p.name,
-      category_id: 1,
+      category_id: (index % 5) + 1,
       product_variants: [
         {
           id: 'variant-' + p.id,
@@ -712,7 +714,7 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     }));
 
     const paginatedItems = customerProducts.slice((page - 1) * limit, page * limit);
-    
+
     return {
       status: 200,
       body: {

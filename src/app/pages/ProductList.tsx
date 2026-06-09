@@ -5,20 +5,24 @@ import { Link, useNavigate, useLocation } from 'react-router';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-import { products, type Product } from '../data/products';
 import { categoryApi, type CategoryProductDto, type CategoryDto } from '../api/categoryApi';
-import { IMAGE_BASE_URL } from '../api/config';
 import { CATEGORY_IMAGE_BASE_URL } from '../api/config';
 import { resolveImageUrl } from '../api/imageUrl';
+import { listCustomerProducts, type CustomerProductDto } from '../api/productApi';
 
-// Construct proper image URL from file path
-const constructImageUrl = (filePath: string): string => {
-  if (!filePath) return '';
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    return filePath;
-  }
-  return `${IMAGE_BASE_URL}${filePath}`;
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  oldPrice?: number;
+  image: string;
+  rating: number;
+  sold: number;
+  category: string;
+  description: string;
 };
+
+const constructImageUrl = (filePath: string): string => resolveImageUrl(filePath);
 
 const mapCategoryProduct = (product: CategoryProductDto, defaultCategory: string): Product => {
   // Extract price from first variant
@@ -27,21 +31,37 @@ const mapCategoryProduct = (product: CategoryProductDto, defaultCategory: string
   // Extract first image path and construct full URL
   const imagePath = product.product_images?.[0]?.file_path ?? '';
   const imageUrl = constructImageUrl(imagePath);
-  
-  const localProduct = products.find(
-    (item) => String(item.id) === String(product.id) || item.name === product.name
-  );
 
   return {
     id: product.id,
     name: product.name,
     price,
-    oldPrice: localProduct?.oldPrice,
+    oldPrice: undefined,
     image: imageUrl,
-    rating: localProduct?.rating ?? 4.8, // Fallback rating nếu không có
-    sold: localProduct?.sold ?? 0,
-    category: localProduct?.category ?? defaultCategory,
-    description: localProduct?.description ?? '',
+    rating: 4.8,
+    sold: 0,
+    category: defaultCategory,
+    description: '',
+  };
+};
+
+const mapAllProduct = (product: CustomerProductDto, categories: CategoryDto[]): Product => {
+  const price = product.product_variants?.[0]?.sale_price ?? 0;
+  const oldPrice = product.product_variants?.[0]?.input_price ?? undefined;
+  const imagePath = product.product_images?.[0]?.file_path ?? product.product_variants?.[0]?.file_path ?? '';
+  const imageUrl = constructImageUrl(imagePath);
+  const categoryName = categories.find((category) => String(category.id) === String(product.category_id))?.name ?? `Danh mục ${product.category_id}`;
+
+  return {
+    id: product.id,
+    name: product.name,
+    price,
+    oldPrice,
+    image: imageUrl,
+    rating: 4.8,
+    sold: 0,
+    category: categoryName,
+    description: product.name,
   };
 };
 
@@ -51,7 +71,8 @@ export default function ProductList() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('popular');
   const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
-  const [isLoadingCategory, setIsLoadingCategory] = useState(false);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
 
   // Fetch categories from API on mount
@@ -74,6 +95,18 @@ export default function ProductList() {
 
     if (!queryCategoryId) {
       setSelectedCategory('');
+      setIsLoading(true);
+      listCustomerProducts(1, 200)
+        .then((response) => {
+          const items = Array.isArray(response.data?.data) ? response.data.data : [];
+          setAllProducts(items.map((item) => mapAllProduct(item, categories)));
+        })
+        .catch(() => {
+          setAllProducts([]);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
       setCategoryProducts([]);
       return;
     }
@@ -82,7 +115,7 @@ export default function ProductList() {
     const categoryName = category?.name ?? '';
     setSelectedCategory(categoryName);
 
-    setIsLoadingCategory(true);
+    setIsLoading(true);
     categoryApi
       .getCategoryProducts(queryCategoryId)
       .then((response) => {
@@ -95,7 +128,7 @@ export default function ProductList() {
         setCategoryProducts([]);
       })
       .finally(() => {
-        setIsLoadingCategory(false);
+        setIsLoading(false);
       });
   }, [location.search, categories]);
 
@@ -104,7 +137,7 @@ export default function ProductList() {
     return '₫' + price.toLocaleString('vi-VN');
   };
 
-  const effectiveProducts = categoryProducts.length > 0 ? categoryProducts : products;
+  const effectiveProducts = selectedCategory ? categoryProducts : allProducts;
   const filteredProducts = effectiveProducts
     .filter((product) => product.price !== undefined && product.price !== null)
     .filter((product) =>
@@ -191,7 +224,7 @@ export default function ProductList() {
 
         {/* LƯỚI SẢN PHẨM */}
         <div className="max-w-7xl mx-auto px-4 py-6">
-          {isLoadingCategory ? (
+          {isLoading ? (
             <div className="text-center py-20 text-slate-500 text-sm">Đang tải sản phẩm...</div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">

@@ -10,6 +10,7 @@ import { useCart } from '../contexts/cart';
 import { useAuth } from '../auth/AuthProvider';
 import { orderApi } from '../api/orderApi';
 import { IMAGE_BASE_URL } from '../api/config';
+import { getMyAddresses, type MyAddressDto } from '../api/accountApi';
 
 const constructImageUrl = (filePath: string): string => {
   if (!filePath) return '';
@@ -23,7 +24,10 @@ export default function Cart() {
   const { cartData, isLoading, refreshCart, updateQuantity, removeFromCart, clearCart } = useCart();
   const auth = useAuth();
   const [promoCode, setPromoCode] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [paymentMethod, setPaymentMethod] = useState('COD');
+  const [addresses, setAddresses] = useState<MyAddressDto[]>([]);
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -35,6 +39,44 @@ export default function Cart() {
     }
   }, [auth.user]);
 
+  useEffect(() => {
+    if (!auth.user) {
+      setAddresses([]);
+      setShippingAddress('');
+      return;
+    }
+
+    let alive = true;
+    setIsLoadingAddresses(true);
+
+    void getMyAddresses()
+      .then((response) => {
+        if (!alive) return;
+        const nextAddresses = response.data;
+        setAddresses(nextAddresses);
+
+        if (nextAddresses.length > 0) {
+          const defaultAddress = nextAddresses.find((address) => address.isDefault) ?? nextAddresses[0];
+          setShippingAddress(defaultAddress.id);
+        } else {
+          setShippingAddress('');
+        }
+      })
+      .catch(() => {
+        if (!alive) return;
+        setAddresses([]);
+        setShippingAddress('');
+      })
+      .finally(() => {
+        if (!alive) return;
+        setIsLoadingAddresses(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [auth.user]);
+
   // Phẳng hóa danh sách item từ tất cả các shop để làm payload gửi lên API
   const allCartItems = useMemo(() => {
     return cartData.shops.flatMap((shop) => shop.items);
@@ -44,23 +86,21 @@ export default function Cart() {
   const handleCheckout = async () => {
     if (allCartItems.length === 0) return;
 
-    // Lấy toàn bộ item đang có trong giỏ hàng không chừa một ai
-    const cartItemsPayload = allCartItems.map((item) => ({
-      product_id: item.product_id,
-      variant_id: item.variant_id,
-      quantity: item.quantity,
-    }));
+    if (!shippingAddress) {
+      setOrderError('Vui lòng chọn địa chỉ giao hàng trước khi đặt đơn.');
+      return;
+    }
 
     setIsCreatingOrder(true);
     setOrderError(null);
 
     try {
       const response = await orderApi.createCustomerOrder({
-        cart_items: cartItemsPayload,
         payment_method: paymentMethod,
+        shipping_address: shippingAddress,
       });
-      
-      toast.success(`Đơn hàng đã tạo thành công! Tổng ${formatPrice(response.data.total)}`);
+
+      toast.success(`Đã tạo đơn hàng thành công: ${response.data.id} · Tổng ${formatPrice(response.data.total_amount)}`);
 
       // Thanh toán xong thì xóa sạch giỏ hàng luôn
       await clearCart();
@@ -74,6 +114,13 @@ export default function Cart() {
 
   const formatPrice = (price: number) => {
     return '₫' + price.toLocaleString('vi-VN');
+  };
+
+  const selectedAddress = addresses.find((address) => address.id === shippingAddress) ?? addresses.find((address) => address.isDefault) ?? addresses[0] ?? null;
+
+  const formatAddressOption = (address: MyAddressDto) => {
+    const parts = [address.label, address.receiverName, address.receiverPhone, address.details].filter(Boolean);
+    return parts.join(' • ');
   };
 
   if (!isLoading && cartData.shops.length === 0) {
@@ -244,8 +291,40 @@ export default function Cart() {
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-4 shadow-sm rounded-sm sticky top-24">
               <h3 className="text-slate-500 font-medium text-xs uppercase tracking-wider mb-4">Giao tới</h3>
               <div className="mb-4 pb-4 border-b border-slate-100">
-                <p className="text-sm font-semibold text-slate-900 mb-1">Trịnh Ngô Vương An | 0987654321</p>
-                <p className="text-xs text-slate-600 leading-relaxed">Đại học Bách Khoa Hà Nội (HUST), Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội</p>
+                {isLoadingAddresses ? (
+                  <p className="text-xs text-slate-500">Đang tải địa chỉ...</p>
+                ) : addresses.length > 0 ? (
+                  <>
+                    <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-slate-500">Chọn một địa chỉ đã đăng ký</label>
+                    <select
+                      value={shippingAddress}
+                      onChange={(e) => setShippingAddress(e.target.value)}
+                      className="mb-3 w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-600 transition-colors"
+                    >
+                      {addresses.map((address) => (
+                        <option key={address.id} value={address.id}>
+                          {formatAddressOption(address)}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedAddress ? (
+                      <>
+                        <p className="text-[11px] uppercase tracking-wider text-slate-400 mb-1">
+                          Địa chỉ đang chọn
+                        </p>
+                        <p className="text-sm font-semibold text-slate-900 mb-1">
+                          {selectedAddress.label || 'Địa chỉ mặc định'}
+                        </p>
+                        <p className="text-xs text-slate-600 leading-relaxed mb-1">
+                          {selectedAddress.receiverName} | {selectedAddress.receiverPhone}
+                        </p>
+                        <p className="text-xs text-slate-600 leading-relaxed">{selectedAddress.details}</p>
+                      </>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-xs text-rose-600 leading-relaxed">Bạn chưa có địa chỉ giao hàng. Hãy thêm địa chỉ trong hồ sơ trước khi đặt đơn.</p>
+                )}
               </div>
 
               <div className="space-y-3 mb-4 pb-4 border-b border-slate-100">
@@ -266,9 +345,9 @@ export default function Cart() {
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     className="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-600 transition-colors"
                   >
-                    <option value="cod">Thanh toán khi nhận hàng (COD)</option>
-                    <option value="card">Thẻ tín dụng / Thẻ ghi nợ</option>
-                    <option value="vnpay">Ví điện tử VNPay / MoMo</option>
+                    <option value="COD">Thanh toán khi nhận hàng (COD)</option>
+                    <option value="CARD">Thẻ tín dụng / Thẻ ghi nợ</option>
+                    <option value="VNPAY">Ví điện tử VNPay / MoMo</option>
                   </select>
                 </div>
               </div>
@@ -291,11 +370,18 @@ export default function Cart() {
               <button
                 type="button"
                 onClick={handleCheckout}
-                disabled={allCartItems.length === 0 || isCreatingOrder}
+                disabled={allCartItems.length === 0 || isCreatingOrder || !shippingAddress}
                 className="w-full bg-orange-600 text-white py-3 font-semibold text-sm hover:bg-orange-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed uppercase tracking-wider rounded-sm shadow-sm"
               >
                 {isCreatingOrder ? `Đang tạo đơn...` : `Mua Tất Cả (${cartData.cart_total_items_count})`}
               </button>
+
+              <Link
+                to="/orders"
+                className="mt-3 block w-full rounded-sm border border-slate-200 bg-white py-3 text-center text-sm font-semibold uppercase tracking-wider text-slate-700 shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700"
+              >
+                Xem đơn hàng
+              </Link>
             </motion.div>
           </div>
 

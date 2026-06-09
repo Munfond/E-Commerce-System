@@ -83,6 +83,16 @@ export async function searchProductsByKeyword(
   });
 }
 
+export async function listCustomerProducts(page = 1, limit = 200) {
+  return api.get<CustomerProductSearchResponseDto>(endpoints.products.customerSearch, {
+    auth: false,
+    query: {
+      page,
+      limit,
+    },
+  });
+}
+
 export async function getAdminProducts(productId?: string) {
   const endpoint = productId ? endpoints.products.adminProduct(productId) : endpoints.products.adminProducts;
   const res = await api.get<AdminProductsResponse>(endpoint, { auth: true });

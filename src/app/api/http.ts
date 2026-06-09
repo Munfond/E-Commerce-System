@@ -120,7 +120,7 @@ export function createHttpClient(opts?: HttpClientOptions) {
         }
       }
 
-      const hasBody = method !== 'GET' && method !== 'DELETE' && options?.body !== undefined;
+      const hasBody = method !== 'GET' && options?.body !== undefined;
 
       let body: BodyInit | undefined;
       if (hasBody) {
