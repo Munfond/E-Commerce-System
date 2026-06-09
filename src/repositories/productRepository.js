@@ -371,3 +371,39 @@ exports.getSellerInfo = async (sellerId) => {
     if (error && error.code !== 'PGRST116') throw error;
     return data;
 };
+
+exports.listProductsForAdmin = async ({ search, from, to, page, limit }) => {
+    let query = supabase
+        .from('products')
+        .select('id, name, brand, category_id, created_at', { count: 'exact' });
+
+    if (search) {
+        query = query.ilike('name', `%${search}%`);
+    }
+
+    const { data, error, count } = await query
+        .range(from, to)
+        .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Lỗi lấy danh sách sản phẩm: ${error.message}`);
+
+    return {
+        data,
+        pagination: {
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+            limit
+        }
+    };
+}
+exports.deleteById = async (productId) => {
+    const { data, error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId)
+        .select(); // Trả ra thông tin sản phẩm vừa xóa (nếu cần)
+
+    if (error) throw new Error(`Lỗi khi xóa sản phẩm: ${error.message}`);
+    return data;
+};

@@ -50,7 +50,7 @@ const shopRepo = {
             .update(updateData)
             .eq('id', shopId)
             .select();
-        if (error) throw error;
+        if (error) throw new Error(`Lỗi cập nhật Shop: ${error.message}`);
         return data;
     },
     async upsertAddress (shopId, addressData) {
@@ -61,15 +61,32 @@ const shopRepo = {
         if (error) throw error;
         return data;
     },
-    async listShops({ keyword, adminStatus, sellerStatus }) {
+    async listShops({ filters, from, to, page, limit }) {
         let query = supabase.from('shops')
             .select('id, shop_name, shop_logo, shop_description, admin_control_status, seller_control_status, shop_addresses(receiver_name, receiver_phone, city, ward, details)');
-        if (adminStatus) query = query.eq('admin_control_status', adminStatus);
-        if (sellerStatus) query = query.eq('seller_control_status', sellerStatus);
-        if (keyword) query = query.ilike('shop_name', `%${keyword}%`);
-        const { data, error } = await query;
-        if (error) throw error;
-        return data;
+        if (filters.official_verify_status) {
+            query = query.eq('official_verify_status', filters.official_verify_status);
+        }
+        if (filters.admin_control_status) {
+            query = query.eq('admin_control_status', filters.admin_control_status);
+        }
+        if (filters.search) {
+            query = query.ilike('name', `%${filters.search}%`);
+        }
+        const { data, error, count } = await query
+            .range(from, to)
+            .order('created_at', { ascending: false });
+
+        if (error) throw new Error(`Lỗi lấy danh sách Shop: ${error.message}`);
+        return {
+            data,
+            pagination: {
+                totalItems: count,
+                totalPages: Math.ceil(count / limit),
+                currentPage: page,
+                limit
+            }
+        };
     },
     async assignUserToSeller (sellerId) {
         const { data, error } = await supabase

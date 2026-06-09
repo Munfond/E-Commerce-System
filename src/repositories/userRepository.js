@@ -188,19 +188,22 @@ exports.updatePasswordById = async (userId, hashedPassword) => {
     return data;
 };
 
-exports.listUsers = async (roleName = null, status = null) => {
+exports.listUsers = async ({ role, status, from, to, page, limit }) => {
     let query = supabase
         .from('user_permissions')
-        .select('user_id, email, username, avatar_url, status, role_name');
+        .select('user_id, email, username, avatar_url, status, role_name', { count: 'exact' });
 
-    if (roleName !== null) {
-        query = query.eq('role_name', roleName);
+    if (role) {
+        query = query.eq('role_name', role);
     }
-    if (status !== null) {
+    if (status) {
         query = query.eq('status', status);
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await query
+        .range(from, to)
+        .order('user_id', { ascending: false });
+
     if (error) throw error;
     
     // --- ĐOẠN XỬ LÝ GỘP ROLE Ở ĐÂY ---
@@ -208,20 +211,29 @@ exports.listUsers = async (roleName = null, status = null) => {
         const existingUser = acc.find(u => u.user_id === current.user_id);
         
         if (existingUser) {
-            if (!existingUser.roles.includes(current.role_name)) {
+            // Kiểm tra xem role_name tồn tại và chưa có trong mảng thì mới push
+            if (current.role_name && !existingUser.roles.includes(current.role_name)) {
                 existingUser.roles.push(current.role_name);
             }
         } else {
             const { role_name, ...userWithoutRoleName } = current;
             acc.push({
                 ...userWithoutRoleName,
-                roles: [role_name]
+                roles: current.role_name ? [current.role_name] : []
             });
         }
         return acc;
     }, []);
 
-    return groupedUsers;
+    return {
+        data: groupedUsers,
+        pagination: {
+            totalItems: count,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+            limit
+        }
+    };
 };
 
 exports.changeUserStatus = async (id, status) => {
@@ -231,9 +243,9 @@ exports.changeUserStatus = async (id, status) => {
             updated_at: new Date() 
         })
         .eq('id', id)
-        .select('id, email')
+        .select('id, email, username, avatar_url, status')
         .single();
 
-    if (error) throw error;
+    if (error) throw new Error(`Lỗi cập nhật trạng thái User: ${error.message}`);
     return data;
-}
+};
