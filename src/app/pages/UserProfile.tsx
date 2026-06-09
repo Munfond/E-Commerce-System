@@ -11,9 +11,37 @@ import { Button } from '../components/ui/button';
 import { useAuth } from '../auth/AuthProvider';
 import { updateAccountProfile, changeAccountPassword, getMyAddresses, createMyAddress, deleteMyAddress, type MyAddressDto } from '../api/accountApi';
 import { useCart } from '../contexts/cart';
-import { products } from '../data/products';
+import { categoryApi, type CategoryDto, type CategoryProductDto } from '../api/categoryApi';
+import { resolveImageUrl } from '../api/imageUrl';
 
-const featuredProducts = products.slice(0, 8);
+type FeaturedProduct = {
+  id: string;
+  name: string;
+  price: number;
+  oldPrice?: number;
+  image: string;
+  rating: number;
+  sold: number;
+  category: string;
+  description: string;
+};
+
+const mapFeaturedProduct = (product: CategoryProductDto, categoryName: string): FeaturedProduct => {
+  const firstVariant = product.product_variants?.[0];
+  const imagePath = product.product_images?.[0]?.file_path ?? '';
+
+  return {
+    id: product.id,
+    name: product.name,
+    price: firstVariant?.sale_price ?? 0,
+    oldPrice: undefined,
+    image: resolveImageUrl(imagePath),
+    rating: 4.8,
+    sold: 0,
+    category: categoryName,
+    description: product.name,
+  };
+};
 
 const formatPrice = (value: number) => `₫${value.toLocaleString('vi-VN')}`;
 
@@ -50,6 +78,8 @@ export default function UserProfile() {
   });
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [addressSaveError, setAddressSaveError] = useState<string | null>(null);
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
+  const [featuredCategoryName, setFeaturedCategoryName] = useState('');
 
   useEffect(() => {
     setUsername(auth.user?.username ?? auth.user?.fullName ?? '');
@@ -106,6 +136,43 @@ export default function UserProfile() {
       alive = false;
     };
   }, [auth.user]);
+
+  useEffect(() => {
+    let alive = true;
+
+    void (async () => {
+      try {
+        const response = await categoryApi.getCategories();
+        if (!alive) return;
+
+        const eligibleCategories = response.data.filter((category: CategoryDto) => category.id >= 1 && category.id <= 9);
+        const pool = eligibleCategories.length > 0 ? eligibleCategories : response.data;
+
+        if (pool.length === 0) {
+          setFeaturedProducts([]);
+          setFeaturedCategoryName('');
+          return;
+        }
+
+        const randomCategory = pool[Math.floor(Math.random() * pool.length)];
+        setFeaturedCategoryName(randomCategory.name);
+
+        const productsResponse = await categoryApi.getCategoryProducts(String(randomCategory.id));
+        if (!alive) return;
+
+        const items = Array.isArray(productsResponse.data?.data) ? productsResponse.data.data : [];
+        setFeaturedProducts(items.slice(0, 8).map((item) => mapFeaturedProduct(item, randomCategory.name)));
+      } catch {
+        if (!alive) return;
+        setFeaturedProducts([]);
+        setFeaturedCategoryName('');
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,17 +298,13 @@ export default function UserProfile() {
     navigate('/login', { replace: true });
   };
 
-  const handleAddToCart = (productId: number) => {
-    const product = products.find((item) => item.id === productId);
-    if (!product) return;
-    addToCart(product, 1);
+  const handleAddToCart = (productId: string | number) => {
+    void addToCart(String(productId), 1);
     toast.success('Đã thêm vào giỏ hàng');
   };
 
-  const handleBuyNow = (productId: number) => {
-    const product = products.find((item) => item.id === productId);
-    if (!product) return;
-    buyNow(product, 1);
+  const handleBuyNow = (productId: string | number) => {
+    void buyNow(String(productId), 1);
     toast.success('Mua ngay thành công');
     navigate('/cart');
   };
@@ -614,7 +677,9 @@ export default function UserProfile() {
           <div className="flex items-end justify-between gap-4 mb-8">
             <div>
               <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Sản phẩm gợi ý</p>
-              <h2 className="text-3xl font-semibold text-slate-900">Cho bạn hôm nay</h2>
+              <h2 className="text-3xl font-semibold text-slate-900">
+                Cho bạn hôm nay{featuredCategoryName ? ` - ${featuredCategoryName}` : ''}
+              </h2>
             </div>
             <Link to="/products" className="text-sm font-semibold text-orange-600 hover:text-orange-700">
               Xem thêm tất cả
