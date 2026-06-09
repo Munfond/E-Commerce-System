@@ -162,14 +162,14 @@ exports.updateOrderStatus = async (req, res) => {
  */
 exports.createOrder = async (req, res) => {
     try {
-        const { payment_method, shipping_address } = req.body;
+        const { payment_method, shipping_address, voucher_code } = req.body;
         const userId = req.user.id;
 
         if (!payment_method || !shipping_address) {
             return res.status(400).json({ error: 'Thiếu thông tin đơn hàng' });
         }
 
-        const result = await orderService.createOrder(userId, payment_method, shipping_address);
+        const result = await orderService.createOrder(userId, payment_method, shipping_address, voucher_code);
         return res.status(201).json(result);
     } catch (err) {
         return res.status(400).json({ error: err.message });

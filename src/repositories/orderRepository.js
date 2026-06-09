@@ -140,8 +140,9 @@ exports.getAdminOrders = async (status = null, shopId = null, limit = 10, offset
 /**
  * Create new order
  */
-exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
-    // Lấy shop_id từ variant đầu tiên (giả sử 1 order = 1 shop)
+exports.createOrder = async (userId, cartItems, paymentMethod, addressId, voucherDiscount = null) => {
+    const voucherRepo = require('./voucherRepository');
+    
     const { data: firstVariant, error: variantError } = await productVariantsTable()
         .select('product:products(shop_id)')
         .eq('id', cartItems[0].variant_id)
@@ -149,20 +150,6 @@ exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
 
     if (variantError || !firstVariant) throw new Error('Variant không tồn tại');
     const shopId = firstVariant.product.shop_id;
-
-    const { data: order, error: orderError } = await orderTable()
-        .insert({
-            user_id: userId,
-            address_id: addressId,
-            shop_id: shopId,
-            total_amount: 0,
-            status: 'PENDING',
-            payment_method: paymentMethod,
-        })
-        .select()
-        .single();
-
-    if (orderError) throw orderError;
 
     let totalAmount = 0;
     const orderItemsData = [];
@@ -178,25 +165,64 @@ exports.createOrder = async (userId, cartItems, paymentMethod, addressId) => {
 
         totalAmount += variant.sale_price * item.quantity;
         orderItemsData.push({
-            order_id: order.id,
+            order_id: null,
             variant_id: item.variant_id,
             quantity: item.quantity,
             price_at_purchase: variant.sale_price,
         });
     }
 
+    let finalAmount = totalAmount;
+    let voucherCode = null;
+    let discountAmount = 0;
+    
+    if (voucherDiscount) {
+        discountAmount = voucherDiscount.discount_amount;
+        finalAmount = totalAmount - discountAmount;
+        voucherCode = voucherDiscount.code;
+        
+        if (finalAmount < 0) finalAmount = 0;
+    }
+
+    const { data: order, error: orderError } = await orderTable()
+        .insert({
+            user_id: userId,
+            address_id: addressId,
+            shop_id: shopId,
+            total_amount: finalAmount,
+            status: 'PENDING',
+            payment_method: paymentMethod,
+            voucher_code: voucherCode
+        })
+        .select()
+        .single();
+
+    if (orderError) throw orderError;
+
+    for (const item of orderItemsData) {
+        item.order_id = order.id;
+    }
+
     const { error: itemsError } = await supabase.from('order_items').insert(orderItemsData);
     if (itemsError) throw itemsError;
 
-    const { error: updateError } = await orderTable()
-        .update({ total_amount: totalAmount })
-        .eq('id', order.id);
-    if (updateError) throw updateError;
+    if (voucherDiscount && voucherDiscount.voucher_id) {
+        try {
+            await voucherRepo.markVoucherAsUsed(userId, voucherDiscount.voucher_id);
+            await voucherRepo.incrementVoucherUsedCount(voucherDiscount.voucher_id);
+        } catch (vError) {
+            console.warn('Warning: Could not update voucher usage:', vError.message);
+        }
+    }
 
-    // Clear cart items after successful order creation
     await cartRepo.clearCart(userId);
 
-    return { id: order.id, total_amount: totalAmount };
+    return { 
+        id: order.id, 
+        total_amount: finalAmount,
+        discount_amount: discountAmount,
+        voucher_code: voucherCode
+    };
 };
 
 /**

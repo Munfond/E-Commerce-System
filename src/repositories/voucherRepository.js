@@ -55,3 +55,37 @@ exports.saveToWallet = async (userId, voucherId) => {
     if (error) throw error;
     return data;
 };
+
+// Đánh dấu voucher là đã sử dụng
+exports.markVoucherAsUsed = async (userId, voucherId) => {
+    const { error } = await supabase
+        .from('user_vouchers')
+        .update({ is_used: true })
+        .eq('user_id', userId)
+        .eq('voucher_id', voucherId)
+        .eq('is_used', false)
+        .limit(1);
+    
+    if (error) throw error;
+    return { success: true };
+};
+
+// Cập nhật used_count của voucher
+exports.incrementVoucherUsedCount = async (voucherId) => {
+    const { data, error } = await supabase
+        .from('vouchers')
+        .select('used_count')
+        .eq('id', voucherId)
+        .single();
+    
+    if (error) throw error;
+    
+    const newCount = (data?.used_count || 0) + 1;
+    const { error: updateError } = await supabase
+        .from('vouchers')
+        .update({ used_count: newCount })
+        .eq('id', voucherId);
+    
+    if (updateError) throw updateError;
+    return { success: true };
+};

@@ -11,5 +11,4 @@ router.patch('/shops/:id/verify', adminController.verifyShop);
 router.patch('/shops/:id/control', adminController.controlShop);
 router.get('/shops', adminController.getShops);
 
-router.get('/products', adminController.getProducts);
 module.exports = router;

@@ -1,5 +1,6 @@
 const orderRepo = require('../repositories/orderRepository');
 const cartRepo = require('../repositories/cartRepository');
+const voucherService = require('./voucherService');
 
 /**
  * Get customer's orders list
@@ -116,7 +117,7 @@ exports.getAdminOrders = async (status = null, shopId = null, page = 1, limit = 
 /**
  * Create new order (checkout)
  */
-exports.createOrder = async (userId, paymentMethod, shippingAddress) => {
+exports.createOrder = async (userId, paymentMethod, shippingAddress, voucherCode = null) => {
     try {
         // Validate input
         if (!paymentMethod || typeof paymentMethod !== 'string') {
@@ -145,7 +146,35 @@ exports.createOrder = async (userId, paymentMethod, shippingAddress) => {
             quantity: item.quantity
         }));
 
-        const result = await orderRepo.createOrder(userId, formattedCartItems, paymentMethod, shippingAddress.trim());
+        // Validate and calculate voucher discount if provided
+        let voucherDiscount = null;
+        if (voucherCode) {
+            const firstItem = cartItems[0];
+            const shopId = firstItem.product_variants?.products?.shop_id;
+            
+            if (!shopId) {
+                throw new Error('Không thể xác định shop từ giỏ hàng');
+            }
+            
+            voucherDiscount = await voucherService.validateAndCalculateDiscount(
+                voucherCode,
+                userId,
+                cartItems.map(item => ({
+                    price: item.product_variants.sale_price,
+                    quantity: item.quantity
+                })),
+                shopId
+            );
+        }
+
+        const result = await orderRepo.createOrder(
+            userId,
+            formattedCartItems,
+            paymentMethod,
+            shippingAddress.trim(),
+            voucherDiscount
+        );
+        
         return result;
     } catch (err) {
         throw new Error(`Lỗi khi tạo đơn hàng: ${err.message}`);
