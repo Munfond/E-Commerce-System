@@ -1,6 +1,6 @@
 import { Outlet, NavLink, Link } from 'react-router';
 import { useEffect, useState } from 'react';
-import { Bell, LayoutGrid, MessageCircle, ShoppingBag, Store, Package, ChevronDown, User, LogOut } from 'lucide-react';
+import { Bell, LayoutGrid, MessageCircle, ShoppingBag, Store, Package, ChevronDown, User, LogOut, TicketPercent } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -21,6 +21,10 @@ type NavItem = {
 
 const navGroups: { title: string; items: NavItem[] }[] = [
   {
+    title: 'Trang chính',
+    items: [{ to: '/seller', label: 'Dashboard', icon: LayoutGrid }],
+  },
+  {
     title: 'Quản lý đơn hàng',
     items: [{ to: '/seller/orders', label: 'Đơn hàng', icon: ShoppingBag }],
   },
@@ -30,6 +34,10 @@ const navGroups: { title: string; items: NavItem[] }[] = [
       { to: '/seller/products', label: 'Sản phẩm', icon: Package },
       { to: '/seller/inventory', label: 'Kho hàng', icon: Store },
     ],
+  },
+  {
+    title: 'Khuyến mãi',
+    items: [{ to: '/seller/vouchers', label: 'Voucher', icon: TicketPercent }],
   },
   // Cài đặt đã bị ẩn, chỉ giữ menu chính cho seller
   // {

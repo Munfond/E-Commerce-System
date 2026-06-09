@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
+import { useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Upload, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Upload, X } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { categoryApi, type CategoryDto } from '../api/categoryApi';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
 
 export default function AddProduct() {
   const navigate = useNavigate();
@@ -12,16 +21,42 @@ export default function AddProduct() {
     price: '',
     stock: '',
     description: '',
-    category: '',
+    categoryId: '',
     brand: '',
   });
   const [images, setImages] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  useEffect(() => {
+    let alive = true;
+    setCategoriesLoading(true);
+
+    categoryApi
+      .getCategories()
+      .then((response) => {
+        if (!alive) return;
+        setCategories(Array.isArray(response.data) ? response.data : []);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setCategories([]);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setCategoriesLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -177,22 +212,52 @@ export default function AddProduct() {
           {/* Category and Brand */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-2">
-                Danh mục
+              <label htmlFor="categoryId" className="block text-sm font-medium text-slate-700 mb-2">
+                Danh mục sản phẩm <span className="text-red-500">*</span>
               </label>
-              <select
-                id="category"
-                name="category"
-                value={formData.category}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-              >
-                <option value="">Chọn danh mục</option>
-                <option value="electronics">Điện tử</option>
-                <option value="fashion">Thời trang</option>
-                <option value="home">Nhà cửa</option>
-                <option value="sports">Thể thao</option>
-              </select>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none bg-white flex items-center justify-between gap-3"
+                    aria-haspopup="listbox"
+                    aria-label="Chọn danh mục sản phẩm"
+                  >
+                    <span className={formData.categoryId ? 'text-slate-900' : 'text-slate-400'}>
+                      {categoriesLoading
+                        ? 'Đang tải danh mục...'
+                        : formData.categoryId
+                          ? categories.find((category) => String(category.id) === formData.categoryId)?.name ?? 'Chọn 1 danh mục'
+                          : 'Chọn 1 danh mục'}
+                    </span>
+                    <ChevronDown className="size-4 text-slate-500" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] max-h-72 overflow-y-auto p-1 rounded-lg border border-slate-200 shadow-lg">
+                  <DropdownMenuRadioGroup
+                    value={formData.categoryId}
+                    onValueChange={(value) => setFormData((prev) => ({ ...prev, categoryId: value }))}
+                  >
+                    {categories.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">Không có danh mục nào</div>
+                    ) : (
+                      categories.map((category) => (
+                        <DropdownMenuRadioItem
+                          key={category.id}
+                          value={String(category.id)}
+                          className="flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm"
+                        >
+                          <span>{category.name}</span>
+                          {formData.categoryId === String(category.id) ? <Check className="size-4 text-orange-600" /> : null}
+                        </DropdownMenuRadioItem>
+                      ))
+                    )}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <p className="mt-2 text-xs text-slate-500">
+                Seller chỉ được chọn 1 danh mục có sẵn trên web, không nhập thủ công.
+              </p>
             </div>
             <div>
               <label htmlFor="brand" className="block text-sm font-medium text-slate-700 mb-2">

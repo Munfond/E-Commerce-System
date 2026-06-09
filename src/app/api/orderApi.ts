@@ -61,6 +61,7 @@ type RawCustomerOrderDetailDto = CustomerOrderDetailDto | { data?: CustomerOrder
 export type CreateCustomerOrderDto = {
   payment_method: string;
   shipping_address: string;
+  voucher?: string | null;
 };
 
 export type CreateCustomerOrderResponseDto = {

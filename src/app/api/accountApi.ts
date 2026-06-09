@@ -184,6 +184,90 @@ export async function changeAccountPassword(payload: ChangeAccountPasswordDto) {
   return api.put<ChangeAccountPasswordResponseDto>(endpoints.auth.password, payload, { auth: true });
 }
 
+export type SaveCustomerVoucherDto = {
+  code: string;
+};
+
+export type SaveCustomerVoucherResponseDto = {
+  success: true;
+  message: string;
+  data: {
+    id: string;
+    user_id: string;
+    voucher_id: string;
+    order_id: string | null;
+    is_used: boolean;
+    saved_at: string;
+    used_at: string | null;
+  };
+};
+
+export async function saveCustomerVoucher(payload: SaveCustomerVoucherDto) {
+  return api.post<SaveCustomerVoucherResponseDto>(endpoints.customer.voucherSave, payload, { auth: true });
+}
+
+export type CustomerVoucherWalletItemDto = {
+  id: string;
+  is_used: boolean;
+  saved_at: string;
+  vouchers: {
+    id: string;
+    code: string;
+    type: 'FIXED' | 'PERCENTAGE';
+    shop_id: string | null;
+    end_date: string;
+    description: string;
+    discount_value: number;
+    min_order_value: number;
+  };
+};
+
+type CustomerVoucherWalletItemRecord = Record<string, unknown> & {
+  vouchers?: Record<string, unknown>;
+};
+
+type CustomerVoucherWalletResponse =
+  | { success?: boolean; data?: CustomerVoucherWalletItemRecord[] }
+  | { data?: { data?: CustomerVoucherWalletItemRecord[] } }
+  | CustomerVoucherWalletItemRecord[];
+
+function normalizeCustomerVoucherWalletItem(item: CustomerVoucherWalletItemRecord): CustomerVoucherWalletItemDto {
+  const voucher = (item.vouchers ?? {}) as Record<string, unknown>;
+
+  return {
+    id: String(item.id ?? ''),
+    is_used: Boolean(item.is_used ?? false),
+    saved_at: String(item.saved_at ?? ''),
+    vouchers: {
+      id: String(voucher.id ?? ''),
+      code: String(voucher.code ?? ''),
+      type: voucher.type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED',
+      shop_id: voucher.shop_id == null ? null : String(voucher.shop_id),
+      end_date: String(voucher.end_date ?? ''),
+      description: String(voucher.description ?? ''),
+      discount_value: Number(voucher.discount_value ?? 0),
+      min_order_value: Number(voucher.min_order_value ?? 0),
+    },
+  };
+}
+
+export async function getCustomerVoucherWallet(): Promise<HttpResponse<CustomerVoucherWalletItemDto[]>> {
+  const res = await api.get<CustomerVoucherWalletResponse>(endpoints.customer.voucherWallet, { auth: true });
+  const raw = res.data;
+  const items = Array.isArray(raw)
+    ? raw
+    : Array.isArray((raw as { data?: CustomerVoucherWalletItemRecord[] }).data)
+      ? (raw as { data: CustomerVoucherWalletItemRecord[] }).data
+      : Array.isArray((raw as { data?: { data?: CustomerVoucherWalletItemRecord[] } }).data?.data)
+        ? (raw as { data: { data: CustomerVoucherWalletItemRecord[] } }).data.data
+        : [];
+
+  return {
+    ...res,
+    data: items.map((item) => normalizeCustomerVoucherWalletItem(item)),
+  };
+}
+
 type GoogleLoginStartResponse =
   | { url: string }
   | { data?: { url?: string } }

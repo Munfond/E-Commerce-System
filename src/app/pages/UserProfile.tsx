@@ -9,7 +9,17 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../auth/AuthProvider';
-import { updateAccountProfile, changeAccountPassword, getMyAddresses, createMyAddress, deleteMyAddress, type MyAddressDto } from '../api/accountApi';
+import {
+  updateAccountProfile,
+  changeAccountPassword,
+  getMyAddresses,
+  createMyAddress,
+  deleteMyAddress,
+  getCustomerVoucherWallet,
+  saveCustomerVoucher,
+  type CustomerVoucherWalletItemDto,
+  type MyAddressDto,
+} from '../api/accountApi';
 import { useCart } from '../contexts/cart';
 import { categoryApi, type CategoryDto, type CategoryProductDto } from '../api/categoryApi';
 import { resolveImageUrl } from '../api/imageUrl';
@@ -45,6 +55,15 @@ const mapFeaturedProduct = (product: CategoryProductDto, categoryName: string): 
 
 const formatPrice = (value: number) => `₫${value.toLocaleString('vi-VN')}`;
 
+const formatVoucherDate = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const formatVoucherMoney = (value: number) => `₫${value.toLocaleString('vi-VN')}`;
+
 export default function UserProfile() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -78,6 +97,12 @@ export default function UserProfile() {
   });
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [addressSaveError, setAddressSaveError] = useState<string | null>(null);
+  const [voucherCode, setVoucherCode] = useState('');
+  const [isSavingVoucher, setIsSavingVoucher] = useState(false);
+  const [voucherError, setVoucherError] = useState<string | null>(null);
+  const [voucherWallet, setVoucherWallet] = useState<CustomerVoucherWalletItemDto[]>([]);
+  const [voucherWalletLoading, setVoucherWalletLoading] = useState(false);
+  const [voucherWalletError, setVoucherWalletError] = useState<string | null>(null);
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
   const [featuredCategoryName, setFeaturedCategoryName] = useState('');
 
@@ -130,6 +155,36 @@ export default function UserProfile() {
       .finally(() => {
         if (!alive) return;
         setAddressesLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [auth.user]);
+
+  useEffect(() => {
+    if (!auth.user) {
+      setVoucherWallet([]);
+      return;
+    }
+
+    let alive = true;
+    setVoucherWalletLoading(true);
+    setVoucherWalletError(null);
+
+    void getCustomerVoucherWallet()
+      .then((res) => {
+        if (!alive) return;
+        setVoucherWallet(res.data);
+      })
+      .catch((err: unknown) => {
+        if (!alive) return;
+        setVoucherWallet([]);
+        setVoucherWalletError(err instanceof Error ? err.message : 'Không tải được ví voucher');
+      })
+      .finally(() => {
+        if (!alive) return;
+        setVoucherWalletLoading(false);
       });
 
     return () => {
@@ -290,6 +345,31 @@ export default function UserProfile() {
       toast.success('Đã xóa địa chỉ');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Không thể xóa địa chỉ');
+    }
+  };
+
+  const handleSaveVoucher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVoucherError(null);
+
+    const code = voucherCode.trim().toUpperCase();
+    if (!code) {
+      setVoucherError('Vui lòng nhập mã voucher');
+      return;
+    }
+
+    setIsSavingVoucher(true);
+    try {
+      const res = await saveCustomerVoucher({ code });
+      setVoucherCode('');
+      toast.success(res.data.message || 'Đã lưu voucher vào ví của bạn');
+
+      const refreshedWallet = await getCustomerVoucherWallet();
+      setVoucherWallet(refreshedWallet.data);
+    } catch (err: unknown) {
+      setVoucherError(err instanceof Error ? err.message : 'Không thể lưu voucher');
+    } finally {
+      setIsSavingVoucher(false);
     }
   };
 
@@ -484,6 +564,110 @@ export default function UserProfile() {
                   <p className="text-sm text-slate-500">Cập nhật tên người dùng và ảnh đại diện để cá nhân hóa tài khoản.</p>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="max-w-7xl mx-auto px-4 pb-10">
+          <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Ví voucher</p>
+                  <h2 className="text-3xl font-semibold text-slate-900">Lưu voucher của bạn</h2>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Nhập mã voucher để lưu vào ví cá nhân và dùng cho đơn hàng sau này.
+                  </p>
+                </div>
+                <div className="rounded-full bg-orange-100 px-4 py-2 text-sm font-semibold text-orange-700">
+                  Mã voucher sẽ được lưu ngay
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveVoucher} className="mt-6 space-y-4">
+                <div>
+                  <label htmlFor="voucherCode" className="mb-2 block text-sm font-medium text-slate-700">
+                    Mã voucher
+                  </label>
+                  <Input
+                    id="voucherCode"
+                    value={voucherCode}
+                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                    placeholder="SAMSUNG100K"
+                  />
+                </div>
+
+                {voucherError ? <p className="text-sm text-rose-600">{voucherError}</p> : null}
+
+                <Button type="submit" disabled={isSavingVoucher} className="w-full">
+                  {isSavingVoucher ? 'Đang lưu...' : 'Lưu voucher'}
+                </Button>
+              </form>
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Ví voucher của bạn</p>
+                  <h2 className="text-3xl font-semibold text-slate-900">Danh sách voucher đã lưu</h2>
+                </div>
+              </div>
+
+              {voucherWalletLoading ? (
+                <p className="text-sm text-slate-500">Đang tải ví voucher...</p>
+              ) : voucherWalletError ? (
+                <p className="text-sm text-rose-600">{voucherWalletError}</p>
+              ) : voucherWallet.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                  Chưa có voucher nào được lưu vào ví.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {voucherWallet.map((item) => {
+                    const voucher = item.vouchers;
+                    const isPercentage = voucher.type === 'PERCENTAGE';
+                    return (
+                      <div key={item.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-lg font-semibold text-slate-900">{voucher.code}</p>
+                              <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700">
+                                {voucher.type}
+                              </span>
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.is_used ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-700'}`}
+                              >
+                                {item.is_used ? 'Đã sử dụng' : 'Chưa dùng'}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-600">{voucher.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xl font-semibold text-orange-600">
+                              {isPercentage ? `${voucher.discount_value}%` : formatVoucherMoney(voucher.discount_value)}
+                            </p>
+                            <p className="text-xs text-slate-500">Hạn đến {formatVoucherDate(voucher.end_date)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+                          <div className="rounded-2xl bg-white px-4 py-3">
+                            Đơn tối thiểu: <span className="font-semibold text-slate-900">{formatVoucherMoney(voucher.min_order_value)}</span>
+                          </div>
+                          <div className="rounded-2xl bg-white px-4 py-3">
+                            Loại: <span className="font-semibold text-slate-900">{isPercentage ? 'Giảm theo phần trăm' : 'Giảm số tiền cố định'}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 text-xs text-slate-500">
+                          Đã lưu lúc {formatVoucherDate(item.saved_at)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </section>

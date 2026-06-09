@@ -16,6 +16,7 @@ import SellerInventory from "./pages/SellerInventory";
 import SellerProfile from "./pages/SellerProfile";
 import AddProduct from "./pages/AddProduct";
 import SellerProductDetail from "./pages/SellerProductDetail";
+import SellerVoucherCreate from "./pages/SellerVoucherCreate.tsx";
 import Orders from "./pages/Orders";
 import OrderDetail from "./pages/OrderDetail";
 import SellerGuard from "./auth/SellerGuard";
@@ -86,6 +87,7 @@ export const router = createBrowserRouter([
               { path: "products", Component: SellerDashboard },
               { path: "products/add", Component: AddProduct },
               { path: "products/:id", Component: SellerProductDetail },
+              { path: "vouchers", Component: SellerVoucherCreate },
               { path: "profile", Component: SellerProfile },
               { path: "orders", Component: SellerOrders },
               { path: "inventory", Component: SellerInventory },

@@ -27,6 +27,18 @@ export type UpdateSellerShopProductDto = {
   description?: string;
 };
 
+export type CreateSellerVoucherDto = {
+  code: string;
+  description: string;
+  type: 'FIXED' | 'PERCENTAGE';
+  discount_value: number;
+  min_order_value: number;
+  usage_limit: number;
+  per_user_limit: number;
+  start_date: string;
+  end_date: string;
+};
+
 export type CreateSellerShopProductDto = {
   productData: {
     name: string;
@@ -40,22 +52,19 @@ export type CreateSellerShopProductDto = {
     sale_price: number;
     stock: number;
   }>;
-  variant_files?: Record<string, File | File[]> | {};
+  variant_files?: File[][];
   product_images?: File[];
 };
 
 function buildCreateSellerShopProductBody(payload: CreateSellerShopProductDto) {
-  const hasFiles = Array.isArray(payload.product_images) && payload.product_images.length > 0;
+  const hasProductImages = Array.isArray(payload.product_images) && payload.product_images.length > 0;
+  const hasVariantFiles = Boolean(payload.variant_files && payload.variant_files.some((files) => files.length > 0));
 
-  if (!hasFiles) {
+  if (!hasProductImages && !hasVariantFiles) {
     const result: Record<string, unknown> = {
       productData: payload.productData,
       variants: payload.variants,
     };
-
-    if (payload.variant_files) {
-      result.variant_files = payload.variant_files;
-    }
 
     return result;
   }
@@ -63,11 +72,18 @@ function buildCreateSellerShopProductBody(payload: CreateSellerShopProductDto) {
   const body = new FormData();
   body.append('productData', JSON.stringify(payload.productData));
   body.append('variants', JSON.stringify(payload.variants));
-  body.append('variant_files', JSON.stringify(payload.variant_files ?? {}));
 
-  for (const file of payload.product_images ?? []) {
+  (payload.variant_files ?? []).forEach((files, variantIndex) => {
+    files.forEach((file) => {
+      if (file) {
+        body.append('variant_files', file);
+      }
+    });
+  });
+
+  (payload.product_images ?? []).forEach((file, imageIndex) => {
     body.append('product_images', file);
-  }
+  });
 
   return body;
 }
@@ -76,6 +92,14 @@ export async function createSellerShopProduct(payload: CreateSellerShopProductDt
   return api.post<{ success: true; data: SellerShopProductDto | Record<string, unknown> }>(
     endpoints.seller.shopProductsMe,
     buildCreateSellerShopProductBody(payload),
+    { auth: true }
+  );
+}
+
+export async function createSellerVoucher(payload: CreateSellerVoucherDto) {
+  return api.post<{ success: true; data: Record<string, unknown> }>(
+    endpoints.seller.vouchersCreate,
+    payload,
     { auth: true }
   );
 }

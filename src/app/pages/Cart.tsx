@@ -10,7 +10,7 @@ import { useCart } from '../contexts/cart';
 import { useAuth } from '../auth/AuthProvider';
 import { orderApi } from '../api/orderApi';
 import { IMAGE_BASE_URL } from '../api/config';
-import { getMyAddresses, type MyAddressDto } from '../api/accountApi';
+import { getCustomerVoucherWallet, getMyAddresses, type CustomerVoucherWalletItemDto, type MyAddressDto } from '../api/accountApi';
 
 const constructImageUrl = (filePath: string): string => {
   if (!filePath) return '';
@@ -23,11 +23,14 @@ const constructImageUrl = (filePath: string): string => {
 export default function Cart() {
   const { cartData, isLoading, refreshCart, updateQuantity, removeFromCart, clearCart } = useCart();
   const auth = useAuth();
-  const [promoCode, setPromoCode] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('COD');
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [addresses, setAddresses] = useState<MyAddressDto[]>([]);
   const [shippingAddress, setShippingAddress] = useState('');
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const [voucherWallet, setVoucherWallet] = useState<CustomerVoucherWalletItemDto[]>([]);
+  const [voucherWalletLoading, setVoucherWalletLoading] = useState(false);
+  const [voucherWalletError, setVoucherWalletError] = useState<string | null>(null);
+  const [selectedVoucherId, setSelectedVoucherId] = useState('');
   
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -77,6 +80,40 @@ export default function Cart() {
     };
   }, [auth.user]);
 
+  useEffect(() => {
+    if (!auth.user) {
+      setVoucherWallet([]);
+      setSelectedVoucherId('');
+      return;
+    }
+
+    let alive = true;
+    setVoucherWalletLoading(true);
+    setVoucherWalletError(null);
+
+    void getCustomerVoucherWallet()
+      .then((response) => {
+        if (!alive) return;
+        const availableVouchers = response.data.filter((item) => !item.is_used);
+        setVoucherWallet(availableVouchers);
+        setSelectedVoucherId((current) => current || availableVouchers[0]?.vouchers.id || '');
+      })
+      .catch((error: unknown) => {
+        if (!alive) return;
+        setVoucherWallet([]);
+        setSelectedVoucherId('');
+        setVoucherWalletError(error instanceof Error ? error.message : 'Không tải được ví voucher');
+      })
+      .finally(() => {
+        if (!alive) return;
+        setVoucherWalletLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [auth.user]);
+
   // Phẳng hóa danh sách item từ tất cả các shop để làm payload gửi lên API
   const allCartItems = useMemo(() => {
     return cartData.shops.flatMap((shop) => shop.items);
@@ -95,9 +132,11 @@ export default function Cart() {
     setOrderError(null);
 
     try {
+      const selectedVoucher = voucherWallet.find((item) => item.vouchers.id === selectedVoucherId) ?? null;
       const response = await orderApi.createCustomerOrder({
         payment_method: paymentMethod,
         shipping_address: shippingAddress,
+        voucher: selectedVoucher?.vouchers.id ?? null,
       });
 
       toast.success(`Đã tạo đơn hàng thành công: ${response.data.id} · Tổng ${formatPrice(response.data.total_amount)}`);
@@ -270,19 +309,42 @@ export default function Cart() {
               </div>
             ))}
 
-            {/* Mã giảm giá */}
-            <div className="bg-white p-4 flex items-center gap-4 shadow-sm rounded-sm">
-              <Ticket className="size-5 text-orange-600 flex-shrink-0" />
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                placeholder="Nhập mã giảm giá hệ thống"
-                className="flex-1 px-4 py-2 border border-slate-200 text-sm outline-none focus:border-orange-600 transition-colors"
-              />
-              <button className="px-6 py-2 text-sm border border-orange-600 text-orange-600 hover:bg-orange-50 transition-colors font-medium">
-                Áp dụng
-              </button>
+            {/* Voucher trong ví */}
+            <div className="bg-white p-4 shadow-sm rounded-sm space-y-3">
+              <div className="flex items-center gap-3">
+                <Ticket className="size-5 text-orange-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Chọn voucher từ ví voucher</p>
+                  <p className="text-xs text-slate-500">Chỉ hiển thị voucher chưa dùng để áp cho đơn hàng.</p>
+                </div>
+              </div>
+
+              {voucherWalletLoading ? (
+                <p className="text-xs text-slate-500">Đang tải ví voucher...</p>
+              ) : voucherWalletError ? (
+                <p className="text-xs text-rose-600">{voucherWalletError}</p>
+              ) : voucherWallet.length === 0 ? (
+                <p className="text-xs text-slate-500">Bạn chưa có voucher nào khả dụng trong ví.</p>
+              ) : (
+                <select
+                  value={selectedVoucherId}
+                  onChange={(e) => setSelectedVoucherId(e.target.value)}
+                  className="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-600 transition-colors"
+                >
+                  {voucherWallet.map((item) => {
+                    const voucher = item.vouchers;
+                    const label = voucher.type === 'PERCENTAGE'
+                      ? `${voucher.code} - Giảm ${voucher.discount_value}%`
+                      : `${voucher.code} - Giảm ${formatPrice(voucher.discount_value)}`;
+
+                    return (
+                      <option key={item.id} value={voucher.id}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
             </div>
           </div>
 
@@ -337,6 +399,12 @@ export default function Cart() {
                   <span className="text-slate-500">Giảm giá hệ thống</span>
                   <span className="text-green-600 font-medium">-₫0</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Voucher áp dụng</span>
+                  <span className="text-slate-900 font-medium">
+                    {voucherWallet.find((item) => item.vouchers.id === selectedVoucherId)?.vouchers.code ?? 'Không chọn voucher'}
+                  </span>
+                </div>
                 
                 <div className="space-y-2 pt-2">
                   <label className="text-xs text-slate-500 font-medium uppercase tracking-wider">Phương thức thanh toán</label>
@@ -345,9 +413,8 @@ export default function Cart() {
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     className="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-600 transition-colors"
                   >
-                    <option value="COD">Thanh toán khi nhận hàng (COD)</option>
-                    <option value="CARD">Thẻ tín dụng / Thẻ ghi nợ</option>
-                    <option value="VNPAY">Ví điện tử VNPay / MoMo</option>
+                    <option value="CASH">Thanh toán tiền mặt (CASH)</option>
+                    <option value="VNPAY">Ví điện tử VNPay</option>
                   </select>
                 </div>
               </div>

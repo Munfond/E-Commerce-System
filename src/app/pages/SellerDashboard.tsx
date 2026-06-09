@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
+import { categoryApi, type CategoryDto } from '../api/categoryApi';
 import { IMAGE_BASE_URL } from '../api/config';
 import { createSellerShopProduct, listSellerProducts, listSellerShopProducts } from '../api/seller/sellerApi';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import type { SellerShopProduct } from '../types/models/seller';
 
 const tabs = [
@@ -35,10 +37,14 @@ export default function SellerDashboard() {
   const [createName, setCreateName] = useState('');
   const [createDescription, setCreateDescription] = useState('');
   const [createBrand, setCreateBrand] = useState('');
-  const [createCategory, setCreateCategory] = useState('');
+  const [createCategoryId, setCreateCategoryId] = useState('');
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [createVariants, setCreateVariants] = useState([
     { name: 'Default', input_price: 0, sale_price: 0, stock: 0 },
   ]);
+  const [createVariantFiles, setCreateVariantFiles] = useState<File[][]>([[]]);
+  const [createVariantImagePreviews, setCreateVariantImagePreviews] = useState<string[][]>([[]]);
   const [createProductImages, setCreateProductImages] = useState<File[]>([]);
   const [createImagePreviews, setCreateImagePreviews] = useState<string[]>([]);
   const [createLoading, setCreateLoading] = useState(false);
@@ -57,6 +63,39 @@ export default function SellerDashboard() {
       previews.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [createProductImages]);
+
+  useEffect(() => {
+    const nextPreviews = createVariantFiles.map((files) => files.map((file) => URL.createObjectURL(file)));
+    setCreateVariantImagePreviews(nextPreviews);
+
+    return () => {
+      nextPreviews.flat().forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [createVariantFiles]);
+
+  useEffect(() => {
+    let alive = true;
+    setCategoriesLoading(true);
+
+    categoryApi
+      .getCategories()
+      .then((response) => {
+        if (!alive) return;
+        setCategories(Array.isArray(response.data) ? response.data : []);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setCategories([]);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setCategoriesLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -282,19 +321,33 @@ export default function SellerDashboard() {
                 </div>
                 <div>
                   <label className="text-sm text-slate-700">Danh mục</label>
-                  <input
-                    value={createCategory}
-                    onChange={(e) => setCreateCategory(e.target.value)}
-                    className="w-full mt-1 p-2 border rounded-lg"
-                    placeholder="ID danh mục hoặc tên danh mục"
-                  />
+                  <Select value={createCategoryId} onValueChange={setCreateCategoryId}>
+                    <SelectTrigger className="w-full mt-1 p-2 border rounded-lg bg-white">
+                      <SelectValue placeholder={categoriesLoading ? 'Đang tải danh mục...' : 'Chọn 1 danh mục'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.length === 0 ? (
+                        <div className="px-2 py-2 text-sm text-slate-500">Không có danh mục nào</div>
+                      ) : (
+                        categories.map((category) => (
+                          <SelectItem key={category.id} value={String(category.id)}>
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-2 text-xs text-slate-500">Seller chỉ được chọn 1 danh mục có sẵn trên web.</p>
                 </div>
                 <div className="rounded-lg border border-slate-200 p-3">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-sm font-semibold text-slate-800">Thông tin variants</div>
                     <button
                       type="button"
-                      onClick={() => setCreateVariants((prev) => [...prev, { name: 'Variant mới', input_price: 0, sale_price: 0, stock: 0 }])}
+                      onClick={() => {
+                        setCreateVariants((prev) => [...prev, { name: 'Variant mới', input_price: 0, sale_price: 0, stock: 0 }]);
+                        setCreateVariantFiles((prev) => [...prev, []]);
+                      }}
                       className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                     >
                       Thêm variant
@@ -372,10 +425,42 @@ export default function SellerDashboard() {
                             placeholder="50"
                           />
                         </div>
+                        <div className="sm:col-span-5 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <label className="text-sm font-medium text-slate-700">Ảnh variant</label>
+                              <p className="text-xs text-slate-500">Có thể chọn nhiều ảnh cho variant này</p>
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(e) => {
+                                const files = Array.from(e.target.files ?? []).slice(0, 5);
+                                setCreateVariantFiles((prev) =>
+                                  prev.map((item, itemIndex) => (itemIndex === index ? files : item))
+                                );
+                              }}
+                              className="w-full max-w-xs text-sm text-slate-700"
+                            />
+                          </div>
+                          {createVariantImagePreviews[index]?.length > 0 && (
+                            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                              {createVariantImagePreviews[index].map((preview, previewIndex) => (
+                                <div key={`${preview}-${previewIndex}`} className="rounded-lg border border-slate-200 overflow-hidden bg-white">
+                                  <img src={preview} alt={`Variant ${index + 1} preview ${previewIndex + 1}`} className="h-24 w-full object-cover" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() =>
-                            setCreateVariants((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+                            {
+                              setCreateVariants((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+                              setCreateVariantFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+                            }
                           }
                           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
                         >
@@ -418,8 +503,8 @@ export default function SellerDashboard() {
                   type="button"
                   disabled={createLoading}
                   onClick={async () => {
-                    if (!createName.trim() || !createDescription.trim() || !createBrand.trim() || !createCategory.trim()) {
-                      setCreateError('Vui lòng điền đủ tên, mô tả, thương hiệu và danh mục.');
+                    if (!createName.trim() || !createDescription.trim() || !createBrand.trim() || !createCategoryId.trim()) {
+                      setCreateError('Vui lòng điền đủ tên, mô tả, thương hiệu và chọn danh mục.');
                       return;
                     }
                     if (createVariants.some((variant) => !variant.name.trim())) {
@@ -437,21 +522,23 @@ export default function SellerDashboard() {
                         productData: {
                           name: createName,
                           description: createDescription,
-                          category_id: createCategory,
+                          category_id: Number(createCategoryId),
                           brand: createBrand,
                         },
                         variants: createVariants,
-                        variant_files: {},
+                        variant_files: createVariantFiles,
                         product_images: createProductImages.length > 0 ? createProductImages : undefined,
                       });
                       setCreateOpen(false);
                       setCreateName('');
                       setCreateDescription('');
                       setCreateBrand('');
-                      setCreateCategory('');
+                      setCreateCategoryId('');
                       setCreateVariants([{ name: 'Default', input_price: 0, sale_price: 0, stock: 0 }]);
+                      setCreateVariantFiles([[]]);
                       setCreateProductImages([]);
                       setCreateImagePreviews([]);
+                      setCreateVariantImagePreviews([[]]);
                       setRefreshKey((current) => current + 1);
                       setPage(1);
                     } catch (e: any) {

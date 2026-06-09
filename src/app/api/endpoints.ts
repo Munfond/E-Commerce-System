@@ -20,6 +20,8 @@ export const endpoints = {
     cart: 'customer/cart',
     orders: 'orders/customer/orders',
     order: (orderId: string) => `orders/customer/orders/${orderId}`,
+    voucherSave: 'vouchers/save',
+    voucherWallet: 'vouchers/my-wallet',
   },
   categories: {
     root: 'categories',
@@ -43,6 +45,7 @@ export const endpoints = {
   seller: {
     products: 'seller/products',
     orders: 'orders/seller/orders',
+    vouchersCreate: 'vouchers/create',
     shopProduct: (id: string) => `../v2/products/me/${id}`,
     shopProductVariants: (id: string) => `../v2/products/me/${id}/variants`,
     shopProductVariant: (variantId: string) => `../v2/products/me/variants/${variantId}`,

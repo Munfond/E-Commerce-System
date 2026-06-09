@@ -235,6 +235,64 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     };
   }
 
+  if (pathname === endpoints.customer.voucherSave && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    const code = typeof payload?.code === 'string' ? payload.code.trim() : '';
+
+    if (!code) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Mã voucher là bắt buộc',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        message: 'Đã lưu mã vào ví của bạn!',
+        data: {
+          id: `wallet-${Date.now()}`,
+          user_id: 'demo-user',
+          voucher_id: `voucher-${code}`,
+          order_id: null,
+          is_used: false,
+          saved_at: new Date().toISOString(),
+          used_at: null,
+        },
+      },
+    };
+  }
+
+  if (pathname === endpoints.customer.voucherWallet && method === 'GET') {
+    return {
+      status: 200,
+      body: {
+        success: true,
+        data: [
+          {
+            id: '1a0ee7aa-9b5a-4511-960c-0bf0c20ab0e2',
+            is_used: false,
+            saved_at: '2026-06-07T09:00:12.173173+00:00',
+            vouchers: {
+              id: 'ea984f35-ee83-49f8-a3d2-4b5484a78d0d',
+              code: 'SHOPVIET20',
+              type: 'PERCENTAGE',
+              shop_id: null,
+              end_date: '2026-07-06T23:59:59+00:00',
+              description: 'Mã giảm giá tri ân khách hàng toàn hệ thống',
+              discount_value: 10,
+              min_order_value: 2000000,
+            },
+          },
+        ],
+      },
+    };
+  }
+
   if (pathname === endpoints.auth.verify && method === 'POST') {
     const payload = options?.body as Record<string, unknown> | undefined;
     
@@ -433,6 +491,32 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     };
   }
 
+  if (pathname === endpoints.customer.orders && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    const paymentMethod = typeof payload?.payment_method === 'string' ? payload.payment_method.trim() : '';
+    const shippingAddress = typeof payload?.shipping_address === 'string' ? payload.shipping_address.trim() : '';
+    const voucher = typeof payload?.voucher === 'string' ? payload.voucher.trim() : '';
+
+    if (!paymentMethod || !shippingAddress) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'payment_method và shipping_address là bắt buộc',
+        },
+      };
+    }
+
+    return {
+      status: 201,
+      body: {
+        id: `order-${Date.now()}`,
+        total_amount: 64930000,
+        voucher_code: voucher || null,
+      },
+    };
+  }
+
   // seller lists
   if (pathname === endpoints.seller.products && method === 'GET') {
     const q = (options?.query?.q as string | undefined) ?? url.searchParams.get('q') ?? undefined;
@@ -508,6 +592,33 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
       items = items.filter((o) => o.status === rawStatus);
     }
     return { status: 200, body: paginate(items, page, pageSize) };
+  }
+
+  if (pathname === endpoints.seller.vouchersCreate && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    const requiredFields = ['code', 'description', 'type', 'discount_value', 'min_order_value', 'usage_limit', 'per_user_limit', 'start_date', 'end_date'] as const;
+    const missingField = requiredFields.find((field) => payload?.[field] == null || payload[field] === '');
+
+    if (missingField) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: `Thiếu trường bắt buộc: ${missingField}`,
+        },
+      };
+    }
+
+    return {
+      status: 201,
+      body: {
+        success: true,
+        data: {
+          id: `voucher-${Date.now()}`,
+          ...payload,
+        },
+      },
+    };
   }
 
   if (pathname === endpoints.orders.seller && method === 'GET') {

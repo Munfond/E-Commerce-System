@@ -9,7 +9,7 @@ export const IMAGE_BASE_URL =
   env.VITE_IMAGE_BASE_URL ?? 'https://uuoizvekbqnjrtadpshx.supabase.co/storage/v1/object/public/products/';
 
 export const CATEGORY_IMAGE_BASE_URL =
-  env.VITE_CATEGORY_IMAGE_BASE_URL ?? 'https://uuoizvekbqnjrtadpshx.supabase.co/storage/v1/object/public/';
+  env.VITE_CATEGORY_IMAGE_BASE_URL ?? 'https://uuoizvekbqnjrtadpshx.supabase.co/storage/v1/object/public/category/';
 
 export const AVATAR_BASE_URL =
   env.VITE_AVATAR_BASE_URL ?? 'https://uuoizvekbqnjrtadpshx.supabase.co/storage/v1/object/public/avatars/';
