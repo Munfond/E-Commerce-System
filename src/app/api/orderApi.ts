@@ -68,10 +68,6 @@ export type CreateCustomerOrderResponseDto = {
   total_amount: number;
 };
 
-export type CancelCustomerOrderDto = {
-  reason: string;
-};
-
 export type AdminOrderDto = {
   id: string;
   user_id: string;
@@ -162,11 +158,8 @@ export const orderApi = {
     }),
   createCustomerOrder: (payload: CreateCustomerOrderDto) =>
     api.post<CreateCustomerOrderResponseDto>(endpoints.customer.orders, payload, { auth: true }),
-  cancelCustomerOrder: (orderId: string, payload: CancelCustomerOrderDto) =>
-    api.del<{ success: true }>(endpoints.customer.order(orderId), {
-      auth: true,
-      body: payload,
-    }),
+  cancelCustomerOrder: (orderId: string, reason: string) =>
+    api.patch<{ success: true }>(endpoints.customer.order(orderId), { reason: reason }, { auth: true }),
   getAdminOrders: async () => {
     const res = await api.get<AdminOrdersResponse>(endpoints.orders.admin, { auth: true });
     const raw = res.data;

@@ -776,7 +776,7 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     };
   }
 
-  if (pathname.startsWith('orders/customer/orders/') && method === 'DELETE') {
+  if (pathname.startsWith('orders/customer/orders/') && method === 'PATCH') {
     return {
       status: 200,
       body: { success: true },

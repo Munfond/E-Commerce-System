@@ -155,7 +155,7 @@ export default function OrderDetail() {
 
     setState((prev) => ({ ...prev, canceling: true, cancelError: null, cancelSuccess: false }));
     orderApi
-      .cancelCustomerOrder(id, { reason: state.cancelReason.trim() })
+      .cancelCustomerOrder(id, state.cancelReason.trim())
       .then(() => {
         setState((prev) => ({ ...prev, canceling: false, cancelSuccess: true }));
       })
@@ -230,7 +230,7 @@ export default function OrderDetail() {
                       >
                         {state.canceling ? 'Đang hủy...' : 'Hủy đơn hàng'}
                       </button>
-                      <p className="text-xs text-slate-500">Lý do sẽ được gửi trong request body với key <span className="font-medium">reason</span>.</p>
+                      <p className="text-xs text-slate-500">Lý do sẽ được gửi trong request body với key <span className="font-medium">reasson</span>.</p>
                     </div>
                   </div>
 
