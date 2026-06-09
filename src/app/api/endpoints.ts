@@ -4,7 +4,10 @@ export const endpoints = {
     logout: 'auth/sessions',
     register: 'auth/accounts',
     verify: 'auth/verifications',
+    google: 'auth/google',
+    googleCallback: 'auth/google/callback',
     me: 'accounts/me',
+    meAddresses: 'accounts/me/addresses',
     refresh: 'auth/sessions/refresh',
     passwordReset: {
       request: 'auth/password-reset/request',
@@ -25,11 +28,17 @@ export const endpoints = {
   products: {
     customerSearch: 'products/customer/products',
     keywordSearch: 'products/keyword',
+    adminProducts: 'products/admin/products',
+    adminProduct: (id: string) => `products/admin/products/${id}`,
   },
   orders: {
     customer: 'orders/customer/orders',
     customerOrder: (id: string) => `orders/customer/orders/${id}`,
     seller: 'orders/seller/orders',
+    admin: 'orders/admin/orders',
+  },
+  admin: {
+    users: 'admin/users',
   },
   seller: {
     products: 'seller/products',

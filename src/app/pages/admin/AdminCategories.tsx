@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { categoryApi, type CategoryDto } from '../../api/categoryApi';
+import { resolveImageUrl } from '../../api/imageUrl';
+import { CATEGORY_IMAGE_BASE_URL } from '../../api/config';
+import { isApiError } from '../../api/errors';
 import { toast } from 'sonner';
 
-type LocalCategory = CategoryDto & { description?: string; parent_id?: number | null };
+type LocalCategory = CategoryDto;
 
 export default function AdminCategories() {
   const [cats, setCats] = useState<LocalCategory[]>([]);
@@ -30,7 +33,8 @@ export default function AdminCategories() {
       setCats((s) => s.filter((c) => c.id !== id));
       toast.success('Đã xóa danh mục');
     } catch (err) {
-      toast.error('Xóa danh mục thất bại');
+      const message = isApiError(err) ? err.message : 'Xóa danh mục thất bại';
+      toast.error(message);
     }
   };
 
@@ -46,19 +50,31 @@ export default function AdminCategories() {
           <thead>
             <tr className="text-left">
               <th className="p-3">ID</th>
+              <th className="p-3">Ảnh</th>
               <th className="p-3">Tên</th>
               <th className="p-3">Hành động</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={3} className="p-4">Đang tải...</td></tr>
+              <tr><td colSpan={4} className="p-4">Đang tải...</td></tr>
             ) : cats.length === 0 ? (
-              <tr><td colSpan={3} className="p-4">Không có danh mục</td></tr>
+              <tr><td colSpan={4} className="p-4">Không có danh mục</td></tr>
             ) : (
               cats.map((c) => (
                 <tr key={c.id}>
                   <td className="p-3">{c.id}</td>
+                  <td className="p-3">
+                    {c.image_url ? (
+                      <img
+                        src={resolveImageUrl(c.image_url, CATEGORY_IMAGE_BASE_URL)}
+                        alt={c.name}
+                        className="h-12 w-12 rounded-md object-cover border border-slate-200"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded-md border border-dashed border-slate-300 bg-slate-50" />
+                    )}
+                  </td>
                   <td className="p-3">{c.name}</td>
                   <td className="p-3">
                     <Link to={`/admin/categories/${c.id}/edit`} className="mr-2 text-blue-600">Sửa</Link>

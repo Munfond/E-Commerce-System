@@ -37,6 +37,7 @@ import SellerOnboardingIdentity from "./pages/SellerOnboardingIdentity";
 import SellerOnboardingTax from "./pages/SellerOnboardingTax";
 import SellerOnboardingDone from "./pages/SellerOnboardingDone";
 import ShopDetails from './pages/ShopDetails';
+import GoogleOAuthCallback from './pages/GoogleOAuthCallback';
 
 export const router = createBrowserRouter([
   {
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       { path: "search", Component: Search },
       { path: "cart", Component: Cart },
       { path: "shops/:id", Component: ShopDetails },
+      { path: "api/v1/auth/google/callback", Component: GoogleOAuthCallback },
       {
         path: "admin",
         Component: AdminGuard,
@@ -65,6 +67,7 @@ export const router = createBrowserRouter([
               { path: "categories/:id/edit", Component: AdminCategoryForm },
               { path: "orders", Component: AdminOrders },
               { path: "products/pending", Component: AdminPendingProducts },
+              { path: "products/:id", Component: AdminPendingProducts },
               { path: "shops", Component: AdminShops },
               { path: "users", Component: AdminUsers },
             ],

@@ -280,14 +280,84 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     return { status: 200, body: { id: 'demo-user', fullName: 'Demo User' } };
   }
 
-  if (pathname === endpoints.auth.me && (method === 'PUT' || method === 'PATCH')) {
-    const payload = options?.body as { username?: string; avatarUrl?: string } | undefined;
-    if (!payload?.username || !payload?.avatarUrl) {
+  if (pathname === endpoints.auth.meAddresses && method === 'GET') {
+    return {
+      status: 200,
+      body: {
+        status: 'success',
+        data: [
+          {
+            id: 'addr-1',
+            receiver_name: 'Demo User',
+            receiver_phone: '0900000000',
+            city: 'Hà Nội',
+            ward: 'Phường Cầu Giấy',
+            details: 'Số 12, ngõ 34, đường ABC',
+            is_default: true,
+          },
+          {
+            id: 'addr-2',
+            receiver_name: 'Demo User 2',
+            receiver_phone: '0911111111',
+            city: 'TP. Hồ Chí Minh',
+            ward: 'Phường 7',
+            details: 'Lầu 3, tòa nhà XYZ',
+            is_default: false,
+          },
+        ],
+      },
+    };
+  }
+
+  if (pathname === endpoints.auth.meAddresses && method === 'POST') {
+    const payload = options?.body as Record<string, unknown> | undefined;
+    const label = typeof payload?.label === 'string' ? payload.label.trim() : '';
+    const recipientName = typeof payload?.recipient_name === 'string' ? payload.recipient_name.trim() : '';
+    const recipientPhone = typeof payload?.recipient_phone === 'string' ? payload.recipient_phone.trim() : '';
+    const country = typeof payload?.country === 'string' ? payload.country.trim() : '';
+    const city = typeof payload?.city === 'string' ? payload.city.trim() : '';
+    const district = typeof payload?.district === 'string' ? payload.district.trim() : '';
+    const ward = typeof payload?.ward === 'string' ? payload.ward.trim() : '';
+    const details = typeof payload?.details === 'string' ? payload.details.trim() : '';
+
+    if (!label || !recipientName || !recipientPhone || !country || !city || !district || !ward || !details) {
       return {
         status: 400,
         body: {
           code: 'VALIDATION_ERROR',
-          message: 'username và avatarUrl là bắt buộc',
+          message: 'Thiếu thông tin địa chỉ',
+        },
+      };
+    }
+
+    return {
+      status: 201,
+      body: {
+        status: 'success',
+        data: {
+          id: `addr-${Date.now()}`,
+          label,
+          receiver_name: recipientName,
+          receiver_phone: recipientPhone,
+          country,
+          city,
+          district,
+          ward,
+          details,
+          is_default: false,
+        },
+      },
+    };
+  }
+
+  if (pathname.startsWith(`${endpoints.auth.meAddresses}/`) && method === 'DELETE') {
+    const addressId = pathname.split('/').pop() ?? '';
+    if (!addressId) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'Thiếu id địa chỉ',
         },
       };
     }
@@ -295,8 +365,50 @@ export async function mockHandle(method: HttpMethod, path: string, options?: Req
     return {
       status: 200,
       body: {
-        username: payload.username,
-        avatarUrl: payload.avatarUrl,
+        success: true,
+      },
+    };
+  }
+
+  if (pathname === endpoints.auth.me && (method === 'PUT' || method === 'PATCH')) {
+    const payload = options?.body;
+    let username: string | null = null;
+    let avatarUrl: string | null = null;
+
+    if (payload instanceof FormData) {
+      username = (payload.get('username') as string | null) ?? null;
+      const avatarValue = payload.get('avatar_url');
+      if (avatarValue instanceof File) {
+        avatarUrl = `demo-user/avatar-${Date.now()}-${avatarValue.name}`;
+      } else if (typeof avatarValue === 'string') {
+        avatarUrl = avatarValue;
+      }
+    } else {
+      const body = payload as { username?: string; avatar_url?: string } | undefined;
+      username = typeof body?.username === 'string' ? body.username : null;
+      avatarUrl = typeof body?.avatar_url === 'string' ? body.avatar_url : null;
+    }
+
+    if (!username || !avatarUrl) {
+      return {
+        status: 400,
+        body: {
+          code: 'VALIDATION_ERROR',
+          message: 'username và avatar_url là bắt buộc',
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      body: {
+        status: 'success',
+        data: {
+          id: 'demo-user',
+          username,
+          email: 'demo@example.com',
+          avatar_url: avatarUrl,
+        },
       },
     };
   }

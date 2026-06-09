@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Mail, Lock, ShoppingBag, Eye, EyeOff } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth/AuthProvider';
+import { getGoogleLoginUrl } from '../api/accountApi';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -13,6 +14,18 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const auth = useAuth();
+
+  const handleGoogleLogin = async () => {
+    try {
+      const res = await getGoogleLoginUrl();
+      if (!res.data.url) {
+        throw new Error('Missing Google auth URL');
+      }
+      window.location.href = res.data.url;
+    } catch {
+      setError('Không thể khởi tạo đăng nhập Google.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,9 +145,11 @@ export default function Login() {
           <div className="space-y-3">
             <motion.button
               type="button"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
-              className="w-full flex items-center justify-center gap-3 py-3 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              className="w-full flex items-center justify-center gap-3 py-3 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="size-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

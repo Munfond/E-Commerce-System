@@ -56,16 +56,18 @@ function normalizeHttpError(payload: unknown, res: Response, url: string) {
   const requestId = res.headers.get('x-request-id') ?? undefined;
 
   // Common backend shapes we can support without coupling:
-  // { message, code, details } or { error: { message, code, details } }
+  // { message, code, details }, { error: { message, code, details } }, or { error: "..." }
   const asObj = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : null;
   const embedded = asObj?.error && typeof asObj.error === 'object' ? (asObj.error as Record<string, unknown>) : null;
   const message =
+    (typeof asObj?.error === 'string' && asObj.error) ||
     (typeof embedded?.message === 'string' && embedded.message) ||
     (typeof asObj?.message === 'string' && asObj.message) ||
     `HTTP ${res.status}`;
   const code =
+    (typeof asObj?.error === 'string' && asObj.error) ||
     (typeof embedded?.code === 'string' && embedded.code) || (typeof asObj?.code === 'string' && asObj.code) || undefined;
-  const details = embedded?.details ?? asObj?.details;
+  const details = embedded?.details ?? asObj?.details ?? (typeof asObj?.error === 'string' ? asObj.error : undefined);
 
   return new ApiError(message, {
     kind: 'http',

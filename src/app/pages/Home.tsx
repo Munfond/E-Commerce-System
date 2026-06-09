@@ -6,6 +6,8 @@ import Footer from '../components/Footer';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useState, useEffect } from 'react';
 import { categoryApi, type CategoryDto } from '../api/categoryApi';
+import { resolveImageUrl } from '../api/imageUrl';
+import { CATEGORY_IMAGE_BASE_URL } from '../api/config';
 import iphoneImage from '../../assets/images/iphone.jpg';
 import macbookImage from '../../assets/images/macbook.jpg';
 import iphone15Image from '../../assets/images/iphone15.jpg';
@@ -210,6 +212,7 @@ export default function Home() {
             <div className="grid grid-cols-5 md:grid-cols-10 gap-4">
               {categories.map((category, index) => {
                 const Icon = categoryIconMap[category.slug] ?? Package;
+                const categoryImage = resolveImageUrl(category.image_url ?? null, CATEGORY_IMAGE_BASE_URL);
                 return (
                   <Link to={`/products?category=${category.id}`} key={category.id}>
                     <motion.div
@@ -218,8 +221,16 @@ export default function Home() {
                       transition={{ duration: 0.3, delay: index * 0.05 }}
                       className="text-center"
                     >
-                      <div className="aspect-square border-2 border-slate-200 rounded-sm mb-2 flex items-center justify-center hover:border-orange-500 hover:shadow-md transition-all">
-                        <Icon className="size-8 text-orange-600" strokeWidth={1.5} />
+                      <div className="aspect-square border-2 border-slate-200 rounded-sm mb-2 flex items-center justify-center overflow-hidden bg-slate-50 hover:border-orange-500 hover:shadow-md transition-all">
+                        {categoryImage ? (
+                          <ImageWithFallback
+                            src={categoryImage}
+                            alt={category.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Icon className="size-8 text-orange-600" strokeWidth={1.5} />
+                        )}
                       </div>
                       <p className="text-xs text-slate-700 line-clamp-2">{category.name}</p>
                     </motion.div>

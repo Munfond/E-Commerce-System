@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { ArrowRight, User, LogOut, ShieldCheck, Star } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../auth/AuthProvider';
-import { updateAccountProfile, changeAccountPassword } from '../api/accountApi';
+import { updateAccountProfile, changeAccountPassword, getMyAddresses, createMyAddress, deleteMyAddress, type MyAddressDto } from '../api/accountApi';
 import { useCart } from '../contexts/cart';
 import { products } from '../data/products';
 
@@ -24,8 +24,9 @@ export default function UserProfile() {
   const userName = auth.user?.fullName ?? auth.user?.username ?? auth.user?.email ?? 'Khách hàng';
   const isSeller = auth.user?.roles?.includes('seller') ?? false;
 
-  const [fullName, setFullName] = useState(auth.user?.fullName ?? auth.user?.username ?? '');
-  const [avatarUrl, setAvatarUrl] = useState(auth.user?.avatarUrl ?? '');
+  const [username, setUsername] = useState(auth.user?.username ?? auth.user?.fullName ?? '');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(auth.user?.avatarUrl ?? '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -33,10 +34,77 @@ export default function UserProfile() {
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const avatarObjectUrlRef = useRef<string | null>(null);
+  const [addresses, setAddresses] = useState<MyAddressDto[]>([]);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [addressesError, setAddressesError] = useState<string | null>(null);
+  const [newAddress, setNewAddress] = useState({
+    label: '',
+    recipient_name: '',
+    recipient_phone: '',
+    country: 'Việt Nam',
+    city: '',
+    district: '',
+    ward: '',
+    details: '',
+  });
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [addressSaveError, setAddressSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    setFullName(auth.user?.fullName ?? auth.user?.username ?? '');
-    setAvatarUrl(auth.user?.avatarUrl ?? '');
+    setUsername(auth.user?.username ?? auth.user?.fullName ?? '');
+    setAvatarFile(null);
+    setAvatarPreviewUrl(auth.user?.avatarUrl ?? '');
+  }, [auth.user]);
+
+  useEffect(() => {
+    if (!avatarFile) {
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(avatarFile);
+    if (avatarObjectUrlRef.current) {
+      URL.revokeObjectURL(avatarObjectUrlRef.current);
+    }
+    avatarObjectUrlRef.current = objectUrl;
+    setAvatarPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+      if (avatarObjectUrlRef.current === objectUrl) {
+        avatarObjectUrlRef.current = null;
+      }
+    };
+  }, [avatarFile]);
+
+  useEffect(() => {
+    if (!auth.user) {
+      setAddresses([]);
+      return;
+    }
+
+    let alive = true;
+    setAddressesLoading(true);
+    setAddressesError(null);
+
+    void getMyAddresses()
+      .then((res) => {
+        if (!alive) return;
+        setAddresses(res.data);
+      })
+      .catch((err: unknown) => {
+        if (!alive) return;
+        setAddresses([]);
+        setAddressesError(err instanceof Error ? err.message : 'Không tải được danh sách địa chỉ');
+      })
+      .finally(() => {
+        if (!alive) return;
+        setAddressesLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [auth.user]);
 
   const handleProfileSave = async (e: React.FormEvent) => {
@@ -45,12 +113,16 @@ export default function UserProfile() {
     setIsSavingProfile(true);
 
     try {
-      const res = await updateAccountProfile({ fullName, avatarUrl });
+      if (!avatarFile) {
+        throw new Error('Vui lòng chọn ảnh đại diện từ máy');
+      }
+
+      const res = await updateAccountProfile({ username, avatar_url: avatarFile });
+      const updatedProfile = res.data.data;
       const updatedUser = {
         ...auth.user,
-        fullName: res.data.fullName,
-        username: res.data.fullName,
-        avatarUrl: res.data.avatarUrl,
+        username: updatedProfile.username,
+        avatarUrl: updatedProfile.avatarUrl,
       };
 
       if (auth.token) {
@@ -90,6 +162,67 @@ export default function UserProfile() {
       setPasswordError(err instanceof Error ? err.message : 'Lỗi khi đổi mật khẩu');
     } finally {
       setIsChangingPassword(false);
+    }
+  };
+
+  const handleAddressFieldChange = (
+    field: keyof typeof newAddress,
+    value: string
+  ) => {
+    setNewAddress((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddressSaveError(null);
+
+    if (!newAddress.label.trim() || !newAddress.recipient_name.trim() || !newAddress.recipient_phone.trim() || !newAddress.city.trim() || !newAddress.district.trim() || !newAddress.ward.trim() || !newAddress.details.trim()) {
+      setAddressSaveError('Vui lòng nhập đầy đủ thông tin địa chỉ');
+      return;
+    }
+
+    setIsSavingAddress(true);
+    try {
+      const res = await createMyAddress({
+        label: newAddress.label.trim(),
+        recipient_name: newAddress.recipient_name.trim(),
+        recipient_phone: newAddress.recipient_phone.trim(),
+        country: newAddress.country.trim(),
+        city: newAddress.city.trim(),
+        district: newAddress.district.trim(),
+        ward: newAddress.ward.trim(),
+        details: newAddress.details.trim(),
+      });
+
+      setAddresses((prev) => [res.data, ...prev]);
+      setNewAddress({
+        label: '',
+        recipient_name: '',
+        recipient_phone: '',
+        country: 'Việt Nam',
+        city: '',
+        district: '',
+        ward: '',
+        details: '',
+      });
+      toast.success('Đã thêm địa chỉ mới');
+    } catch (err: unknown) {
+      setAddressSaveError(err instanceof Error ? err.message : 'Không thể thêm địa chỉ');
+    } finally {
+      setIsSavingAddress(false);
+    }
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    const confirmed = window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này không?');
+    if (!confirmed) return;
+
+    try {
+      await deleteMyAddress(addressId);
+      setAddresses((prev) => prev.filter((address) => address.id !== addressId));
+      toast.success('Đã xóa địa chỉ');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Không thể xóa địa chỉ');
     }
   };
 
@@ -190,7 +323,7 @@ export default function UserProfile() {
 
         <section className="max-w-7xl mx-auto px-4 py-10">
           <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm" role="region" aria-label="Danh sách địa chỉ">
               <div className="flex items-center justify-between gap-4 mb-8">
                 <div>
                   <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Thông tin cá nhân</p>
@@ -203,26 +336,33 @@ export default function UserProfile() {
 
               <form className="space-y-6" onSubmit={handleProfileSave}>
                 <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-slate-700 mb-2">
-                    Họ tên
+                  <label htmlFor="username" className="block text-sm font-medium text-slate-700 mb-2">
+                    Tên người dùng
                   </label>
                   <Input
-                    id="fullName"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Nhập họ tên"
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Nhập tên người dùng"
                   />
                 </div>
                 <div>
                   <label htmlFor="avatarUrl" className="block text-sm font-medium text-slate-700 mb-2">
-                    Ảnh đại diện URL
+                    Ảnh đại diện từ máy
                   </label>
-                  <Input
-                    id="avatarUrl"
-                    value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    placeholder="https://..."
-                  />
+                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600 hover:border-slate-400 hover:bg-slate-100 transition">
+                    <span className="inline-flex size-9 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm">
+                      <ShieldCheck className="size-4" />
+                    </span>
+                    <span className="flex-1">{avatarFile ? avatarFile.name : 'Chọn file ảnh từ máy'}</span>
+                    <input
+                      id="avatarUrl"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
                 {profileError ? (
                   <p className="text-sm text-rose-600">{profileError}</p>
@@ -271,17 +411,202 @@ export default function UserProfile() {
               <div className="mt-8 flex flex-col items-center gap-4">
                 <div className="relative overflow-hidden rounded-full bg-slate-100 w-36 h-36">
                   <ImageWithFallback
-                    src={avatarUrl || ''}
-                    alt={fullName || userName}
+                    src={avatarPreviewUrl || ''}
+                    alt={username || userName}
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="text-center">
-                  <p className="text-xl font-semibold text-slate-900">{fullName || userName}</p>
-                  <p className="text-sm text-slate-500">Cập nhật tên và avatar để cá nhân hóa tài khoản.</p>
+                  <p className="text-xl font-semibold text-slate-900">{username || userName}</p>
+                  <p className="text-sm text-slate-500">Cập nhật tên người dùng và ảnh đại diện để cá nhân hóa tài khoản.</p>
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="max-w-7xl mx-auto px-4 pb-10">
+          <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="mb-6">
+                <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Địa chỉ của bạn</p>
+                <h2 className="text-3xl font-semibold text-slate-900">Thêm địa chỉ mới</h2>
+              </div>
+
+              <form className="space-y-4" onSubmit={handleCreateAddress}>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="addressLabel">
+                    Nhãn địa chỉ
+                  </label>
+                  <Input
+                    id="addressLabel"
+                    value={newAddress.label}
+                    onChange={(e) => handleAddressFieldChange('label', e.target.value)}
+                    placeholder="Văn phòng"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="recipientName">
+                    Người nhận
+                  </label>
+                  <Input
+                    id="recipientName"
+                    value={newAddress.recipient_name}
+                    onChange={(e) => handleAddressFieldChange('recipient_name', e.target.value)}
+                    placeholder="Nguyễn Văn B"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="recipientPhone">
+                    Số điện thoại
+                  </label>
+                  <Input
+                    id="recipientPhone"
+                    value={newAddress.recipient_phone}
+                    onChange={(e) => handleAddressFieldChange('recipient_phone', e.target.value)}
+                    placeholder="0987654321"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="country">
+                    Quốc gia
+                  </label>
+                  <Input
+                    id="country"
+                    value={newAddress.country}
+                    onChange={(e) => handleAddressFieldChange('country', e.target.value)}
+                    placeholder="Việt Nam"
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="city">
+                      Tỉnh/Thành phố
+                    </label>
+                    <Input
+                      id="city"
+                      value={newAddress.city}
+                      onChange={(e) => handleAddressFieldChange('city', e.target.value)}
+                      placeholder="Thành phố Hồ Chí Minh"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="district">
+                      Quận/Huyện
+                    </label>
+                    <Input
+                      id="district"
+                      value={newAddress.district}
+                      onChange={(e) => handleAddressFieldChange('district', e.target.value)}
+                      placeholder="Quận 1"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="ward">
+                      Phường/Xã
+                    </label>
+                    <Input
+                      id="ward"
+                      value={newAddress.ward}
+                      onChange={(e) => handleAddressFieldChange('ward', e.target.value)}
+                      placeholder="Phường Bến Nghé"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700" htmlFor="details">
+                      Chi tiết địa chỉ
+                    </label>
+                    <Input
+                      id="details"
+                      value={newAddress.details}
+                      onChange={(e) => handleAddressFieldChange('details', e.target.value)}
+                      placeholder="Tầng 12, Tòa nhà Bitexco, 2 Hải Triều"
+                    />
+                  </div>
+                </div>
+
+                {addressSaveError ? <p className="text-sm text-rose-600">{addressSaveError}</p> : null}
+
+                <Button type="submit" disabled={isSavingAddress}>
+                  {isSavingAddress ? 'Đang lưu...' : 'Thêm địa chỉ'}
+                </Button>
+              </form>
+            </div>
+
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Địa chỉ của bạn</p>
+                  <h2 className="text-3xl font-semibold text-slate-900">Danh sách địa chỉ</h2>
+                </div>
+              </div>
+
+            {addressesLoading ? (
+              <p className="text-sm text-slate-500">Đang tải địa chỉ...</p>
+            ) : addressesError ? (
+              <p className="text-sm text-rose-600">{addressesError}</p>
+            ) : addresses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+                Chưa có địa chỉ nào được lưu cho tài khoản này.
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {addresses.map((address, index) => (
+                  <div key={address.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-slate-900">Địa chỉ {index + 1}</p>
+                          {address.isDefault ? (
+                            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                              Mặc định
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600">{address.receiverName || 'Địa chỉ người dùng'}</p>
+                        <p className="mt-1 text-sm text-slate-600">{address.receiverPhone || 'Chưa có số điện thoại'}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAddress(address.id)}
+                        className="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition"
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-slate-600">
+                      <div className="flex gap-2">
+                        <span className="text-slate-400">Nhãn:</span>
+                        <span className="text-slate-900">{address.label || 'Chưa đặt nhãn'}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-slate-400">Quốc gia:</span>
+                        <span className="text-slate-900">{address.country || 'Chưa cập nhật'}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-slate-400">Tỉnh/TP:</span>
+                        <span className="text-slate-900">{address.city || 'Chưa cập nhật'}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-slate-400">Quận/Huyện:</span>
+                        <span className="text-slate-900">{address.district || 'Chưa cập nhật'}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-slate-400">Phường/Xã:</span>
+                        <span className="text-slate-900">{address.ward || 'Chưa cập nhật'}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="text-slate-400">Chi tiết:</span>
+                        <span className="text-slate-900">{address.details || 'Chưa cập nhật'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           </div>
         </section>
 

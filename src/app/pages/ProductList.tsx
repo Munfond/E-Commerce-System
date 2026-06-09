@@ -8,6 +8,8 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { products, type Product } from '../data/products';
 import { categoryApi, type CategoryProductDto, type CategoryDto } from '../api/categoryApi';
 import { IMAGE_BASE_URL } from '../api/config';
+import { CATEGORY_IMAGE_BASE_URL } from '../api/config';
+import { resolveImageUrl } from '../api/imageUrl';
 
 // Construct proper image URL from file path
 const constructImageUrl = (filePath: string): string => {
@@ -140,7 +142,16 @@ export default function ProductList() {
                       : 'border border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  {category.name}
+                  <span className="flex items-center gap-2">
+                    {category.image_url ? (
+                      <img
+                        src={resolveImageUrl(category.image_url, CATEGORY_IMAGE_BASE_URL)}
+                        alt={category.name}
+                        className="h-5 w-5 rounded-full object-cover border border-current/20"
+                      />
+                    ) : null}
+                    <span>{category.name}</span>
+                  </span>
                 </button>
               ))}
             </div>

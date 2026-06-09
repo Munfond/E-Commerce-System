@@ -13,6 +13,8 @@ import {
 } from '../api/authStorage';
 import { api } from '../api/client';
 import { endpoints } from '../api/endpoints';
+import { resolveImageUrl } from '../api/imageUrl';
+import { AVATAR_BASE_URL } from '../api/config';
 import type { AuthState, AuthUser } from './authTypes';
 
 type LoginInput = { email: string; password: string };
@@ -23,7 +25,22 @@ type RawAuthUser = {
   email?: string;
   roles?: string[];
   avatarUrl?: string;
+  avatar_url?: string;
 };
+
+type RawAuthMeResponse =
+  | RawAuthUser
+  | { status?: string; data?: RawAuthUser }
+  | { data?: { status?: string; data?: RawAuthUser } };
+
+function normalizeRawAuthUser(response: RawAuthMeResponse): RawAuthUser {
+  const payload = 'status' in response || 'id' in response || 'email' in response ? response : response.data;
+  if (payload && 'status' in payload && 'data' in payload) {
+    return payload.data ?? {};
+  }
+
+  return (payload ?? {}) as RawAuthUser;
+}
 
 type AuthContextValue = AuthState & {
   login: (input: LoginInput) => Promise<AuthUser>;
@@ -42,6 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const oauthAccessToken = searchParams.get('access');
+    const oauthRefreshToken = searchParams.get('refresh');
     const token = getAccessToken();
     const refreshToken = getRefreshToken();
 
@@ -52,10 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setState({ token: null, user: null, loading: false });
     };
 
-    const fetchProfile = async (accessToken: string) => {
-      const res = await api.get<AuthUser | { data: AuthUser }>(endpoints.auth.me, { auth: true });
-      const payload = 'data' in res.data ? res.data.data : res.data;
-      const rawUser = payload as RawAuthUser;
+    const fetchProfile = async (accessToken: string, fallbackRole?: AuthRole) => {
+      const res = await api.get<RawAuthMeResponse>(endpoints.auth.me, { auth: true });
+      const rawUser = normalizeRawAuthUser(res.data);
       const role = rawUser.roles?.includes('seller')
         ? 'seller'
         : rawUser.roles?.includes('admin')
@@ -63,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : rawUser.roles?.includes('customer')
         ? 'user'
         : rawUser.email || rawUser.fullName
-        ? getRole()
+        ? fallbackRole ?? getRole() ?? 'user'
         : undefined;
 
       if (!role) {
@@ -76,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: rawUser.email ?? '',
         role,
         roles: rawUser.roles?.filter((r): r is AuthRole => r === 'user' || r === 'seller' || r === 'admin') ?? [role],
-        avatarUrl: rawUser.avatarUrl,
+        avatarUrl: resolveImageUrl(rawUser.avatarUrl ?? rawUser.avatar_url, AVATAR_BASE_URL),
       };
 
       return user;
@@ -110,7 +129,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setState({ token: newToken, user, loading: false });
     };
 
+    const handleOAuthCallback = async (accessToken: string, refreshTokenValue: string | null) => {
+      setAccessToken(accessToken);
+      if (refreshTokenValue) {
+        setRefreshToken(refreshTokenValue);
+      }
+
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      const user = await fetchProfile(accessToken, 'user');
+      if (!isMounted) return;
+
+      if (!user.role) {
+        clearSession();
+        return;
+      }
+
+      setRole(user.role);
+      setState({ token: accessToken, user, loading: false });
+      window.location.replace(user.role === 'admin' ? '/admin' : '/profile');
+    };
+
     const restoreSession = async () => {
+      if (oauthAccessToken) {
+        setState({ token: oauthAccessToken, user: null, loading: true });
+        await handleOAuthCallback(oauthAccessToken, oauthRefreshToken).catch(() => {
+          if (!isMounted) return;
+          clearSession();
+        });
+        return;
+      }
+
       if (token) {
         setState({ token, user: null, loading: true });
         try {
@@ -180,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: rawUser.email ?? '',
           role,
           roles: rawUser.roles.filter((r): r is AuthRole => r === 'user' || r === 'seller' || r === 'admin'),
-          avatarUrl: rawUser.avatarUrl,
+          avatarUrl: resolveImageUrl(rawUser.avatarUrl ?? rawUser.avatar_url, AVATAR_BASE_URL),
         };
         setAccessToken(token);
         if (refreshToken) {
