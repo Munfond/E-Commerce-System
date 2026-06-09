@@ -14,6 +14,9 @@ exports.authenticateToken = (req, res, next) => {
             return res.status(403).json({ error: "Phiên đăng nhập hết hạn hoặc không hợp lệ." });
         }
         // Lưu thông tin user đã giải mã vào request để các hàm sau sử dụng
+        if (decoded.status === 'BANNED') {
+            return res.status(403).json({ error: "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin." });
+        }
         req.user = decoded; 
         next();
     });

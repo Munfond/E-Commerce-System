@@ -10,5 +10,8 @@ router.use(authenticateToken, authorizeRole('admin'));
 router.patch('/shops/:id/verify', adminController.verifyShop); 
 router.patch('/shops/:id/control', adminController.controlShop);
 router.get('/shops', adminController.getShops);
+router.get('/products', adminController.getProducts);
+router.get('/users', adminController.getAllUsers);
+router.post('/users/:id/status', adminController.changeUserStatus);
 
 module.exports = router;

@@ -52,11 +52,16 @@ exports.getCartItems = async (userId) => {
                     id,
                     name,
                     brand,
-                    shop_id
+                    shop_id,
+                    shops:shop_id (
+                        id,
+                        shop_name,
+                        shop_logo
+                    )
                 )
             )
         `)
-        .eq('cart_id', cart.id)
+        .eq('cart_id', cart.id);
 
     if (error) throw error;
     return items || [];

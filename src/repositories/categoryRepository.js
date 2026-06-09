@@ -3,12 +3,40 @@ const supabase = require('../config/supabase');
 const categoryTable = () => supabase.from('categories');
 const productTable = () => supabase.from('products');
 
+//Upload image của category lên supabase
+exports.uploadImage = async (file, folder) => {
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+    const filePath = `${folder}/${fileName}`;
+
+    const { data, error } = await supabase.storage
+        .from('category') 
+        .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            upsert: true
+        });
+
+    if (error) throw new Error(`Lỗi Supabase Storage: ${error.message}`);
+    return data; 
+};
+
+//Xoá ảnh ra khỏi supabase storage
+exports.deleteImage = async (filePath) => {
+    if (!filePath) return;
+    const { data, error } = await supabase.storage
+        .from('category')
+        .remove([filePath]);
+
+    if (error) throw error;
+    return data;
+};
+
 /**
  * Lấy tất cả danh mục
  */
 exports.getAllCategories = async () => {
     const { data, error } = await categoryTable()
-        .select('id, name, slug')
+        .select('id, name, slug, image_url')
         .order('name', { ascending: true });
 
     if (error) throw error;
@@ -22,7 +50,7 @@ exports.getCategoryById = async (id) => {
     const { data, error } = await categoryTable()
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
     if (error && error.code !== 'PGRST116') throw error;
     return data;
@@ -56,22 +84,10 @@ exports.getProductsByCategory = async (categoryId, page = 1, limit = 10) => {
 /**
  * Tạo danh mục mới
  */
-exports.createCategory = async (name, description, parentId = null) => {
-    // Tạo slug từ name
-    const slug = name
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '');
-
+exports.createCategory = async (insertData) => {
     const { data, error } = await categoryTable()
-        .insert({
-            name,
-            slug,
-            description,
-            parent_id: parentId
-        })
-        .select('id, name')
+        .insert(insertData)
+        .select('*')
         .single();
 
     if (error) throw error;
@@ -96,7 +112,6 @@ exports.updateCategory = async (id, updates) => {
  * Xóa danh mục
  */
 exports.deleteCategory = async (id) => {
-    // Kiểm tra có sản phẩm nào liên quan không
     const { count: productCount, error: countError } = await productTable()
         .select('id', { count: 'exact', head: true })
         .eq('category_id', id);

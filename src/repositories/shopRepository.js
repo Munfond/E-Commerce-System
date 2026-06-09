@@ -13,7 +13,7 @@ const shopRepo = {
     async findById(id) {
         const { data, error } = await supabase
             .from('shops')
-            .select('*, shop_addresses(*)')
+            .select('id, shop_name, shop_logo, shop_description, admin_control_status, seller_control_status, shop_addresses(receiver_name, receiver_phone, city, ward, details)')
             .eq('id', id)
             .single();
         if (error) throw error;

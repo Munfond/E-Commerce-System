@@ -20,6 +20,7 @@ router.delete("/me/images/:image_id", authorizeSeller, productImagesControllerV2
 router.put("/me/:id/images/reorder", authorizeSeller, productImagesControllerV2.reorderImages);
 
 router.post("/me/:id/variants", authorizeSeller, upload.array('variant_files', 20), productControllerV2.addVariants);
+router.patch("/me/:id/status", authorizeSeller, productControllerV2.updateProductStatus);
 router.patch("/me/:id", authorizeSeller, productControllerV2.updateProduct);
 //router.patch("/me/:id", authorizeSeller, productControllerV2.update);
 //router.post("/me", authorizeSeller, productControllerV2.create);

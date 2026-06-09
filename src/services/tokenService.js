@@ -4,9 +4,9 @@ const tokenRepo = require('../repositories/tokenRepository');
 
 const tokenService = {
     // Tạo Access Token (có kèm roles)
-    generateAccessToken(userId, roles) {
+    generateAccessToken(userId, roles, status) {
         return jwt.sign(
-            { id: userId, roles },
+            { id: userId, roles , status},
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_ACCESS_EXPIRES }
         );
