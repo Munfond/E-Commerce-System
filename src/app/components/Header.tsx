@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, ShoppingCart, Search, Bell, User, LogOut, Menu, ChevronRight } from 'lucide-react';
+import { ShoppingBag, ShoppingCart, Search, User, LogOut, Menu, ChevronRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { useCart } from '../contexts/cart';
@@ -53,11 +53,8 @@ export default function Header({ cartCount }: { cartCount?: number }) {
             >
               Trở thành Người bán ShopViet
             </Link>
-            <span className="border-l border-orange-400 pl-4">Tải ứng dụng</span>
           </div>
           <div className="flex items-center gap-4">
-            <Bell className="size-4" />
-            <span>Thông báo</span>
             {userName ? (
               <>
                 <Link to="/profile" className="border-l border-orange-400 pl-4 hover:text-orange-100">
@@ -108,12 +105,6 @@ export default function Header({ cartCount }: { cartCount?: number }) {
                   <Search className="size-4" />
                 </button>
               </form>
-              <div className="mt-2 hidden sm:flex flex-wrap gap-3 text-xs text-white">
-                <a href="#" className="hover:text-orange-100">Áo thun</a>
-                <a href="#" className="hover:text-orange-100">Điện thoại</a>
-                <a href="#" className="hover:text-orange-100">Laptop</a>
-                <a href="#" className="hover:text-orange-100">Tai nghe</a>
-              </div>
             </div>
 
             <div className="order-2 md:order-3 ml-auto flex items-center gap-2 flex-shrink-0">

@@ -41,6 +41,7 @@ export const endpoints = {
   },
   admin: {
     users: 'admin/users',
+    userStatus: (id: string) => `admin/users/${id}/status`,
   },
   seller: {
     products: 'seller/products',

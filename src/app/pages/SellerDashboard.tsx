@@ -286,7 +286,6 @@ export default function SellerDashboard() {
             <DialogContent className="max-w-lg p-6">
               <DialogHeader>
                 <DialogTitle>Tạo sản phẩm mới</DialogTitle>
-                <DialogDescription>Gửi lên backend theo body `productData`, `variants`, `variant_files`, `product_images`.</DialogDescription>
               </DialogHeader>
 
               <div className="mt-4 space-y-3">

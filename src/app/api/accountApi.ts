@@ -7,7 +7,13 @@ import { AVATAR_BASE_URL } from './config';
 export type AdminUserDto = {
   id: string;
   email: string;
+  username: string;
+  avatarUrl: string;
+  status: string;
+  roles: string[];
 };
+
+export type AdminUserStatus = 'ACTIVE' | 'PENDING' | 'BANNED';
 
 export type MyAddressDto = {
   id: string;
@@ -49,9 +55,27 @@ type AdminUsersResponse =
   | { items?: AdminUserDto[] | AdminUserDto };
 
 function normalizeAdminUserDto(user: AdminUserDto | Record<string, unknown>): AdminUserDto {
+  const roles = Array.isArray(user.roles)
+    ? user.roles.map((role) => String(role)).filter(Boolean)
+    : typeof user.roles === 'string'
+      ? String(user.roles)
+          .split(',')
+          .map((role) => role.trim())
+          .filter(Boolean)
+      : [];
+
+  const rawStatus = String(user.status ?? '').toUpperCase();
+  const status: AdminUserStatus = rawStatus === 'ACTIVE' || rawStatus === 'PENDING' || rawStatus === 'BANNED'
+    ? rawStatus
+    : 'PENDING';
+
   return {
-    id: String(user.id ?? ''),
+    id: String(user.id ?? user.user_id ?? ''),
     email: String(user.email ?? ''),
+    username: String(user.username ?? user.name ?? ''),
+    avatarUrl: resolveImageUrl(String(user.avatar_url ?? user.avatarUrl ?? ''), AVATAR_BASE_URL),
+    status,
+    roles,
   };
 }
 
@@ -329,7 +353,7 @@ export async function getAdminUsers() {
       ? (raw as { data: AdminUserDto[] }).data
       : Array.isArray((raw as { items?: AdminUserDto[] }).items)
         ? (raw as { items: AdminUserDto[] }).items
-        : raw && typeof raw === 'object' && 'id' in raw
+        : raw && typeof raw === 'object' && ('id' in raw || 'user_id' in raw)
           ? [raw as AdminUserDto]
           : [];
 
@@ -337,4 +361,10 @@ export async function getAdminUsers() {
     ...res,
     data: items.map((item) => normalizeAdminUserDto(item)),
   };
+}
+
+type UpdateAdminUserStatusResponse = unknown;
+
+export async function updateAdminUserStatus(userId: string, status: AdminUserStatus) {
+  return api.patch<UpdateAdminUserStatusResponse>(endpoints.admin.userStatus(userId), { status }, { auth: true });
 }

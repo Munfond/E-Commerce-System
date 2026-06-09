@@ -22,6 +22,8 @@ type Product = {
   description: string;
 };
 
+const PAGE_SIZE = 24;
+
 const constructImageUrl = (filePath: string): string => resolveImageUrl(filePath);
 
 const mapCategoryProduct = (product: CategoryProductDto, defaultCategory: string): Product => {
@@ -74,6 +76,9 @@ export default function ProductList() {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
 
   // Fetch categories from API on mount
   useEffect(() => {
@@ -92,17 +97,23 @@ export default function ProductList() {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const queryCategoryId = searchParams.get('category') ?? '';
+    const nextPage = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+    setCurrentPage(nextPage);
 
     if (!queryCategoryId) {
       setSelectedCategory('');
       setIsLoading(true);
-      listCustomerProducts(1, 200)
+      listCustomerProducts(nextPage, PAGE_SIZE)
         .then((response) => {
           const items = Array.isArray(response.data?.data) ? response.data.data : [];
           setAllProducts(items.map((item) => mapAllProduct(item, categories)));
+          setTotalPages(response.data?.pagination?.pages ?? 1);
+          setTotalProducts(response.data?.pagination?.total ?? items.length);
         })
         .catch(() => {
           setAllProducts([]);
+          setTotalPages(1);
+          setTotalProducts(0);
         })
         .finally(() => {
           setIsLoading(false);
@@ -117,15 +128,19 @@ export default function ProductList() {
 
     setIsLoading(true);
     categoryApi
-      .getCategoryProducts(queryCategoryId)
+      .getCategoryProducts(queryCategoryId, nextPage, PAGE_SIZE)
       .then((response) => {
         const items = Array.isArray(response.data?.data)
           ? response.data.data.map((item) => mapCategoryProduct(item, categoryName))
           : [];
         setCategoryProducts(items);
+        setTotalPages(response.data?.pagination?.pages ?? 1);
+        setTotalProducts(response.data?.pagination?.total ?? items.length);
       })
       .catch(() => {
         setCategoryProducts([]);
+        setTotalPages(1);
+        setTotalProducts(0);
       })
       .finally(() => {
         setIsLoading(false);
@@ -144,6 +159,26 @@ export default function ProductList() {
       selectedCategory ? product.category === selectedCategory : true
     );
 
+  const paginationWindow = 2;
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1).filter((page) => {
+    return page === 1 || page === totalPages || Math.abs(page - currentPage) <= paginationWindow;
+  });
+
+  const updatePage = (page: number) => {
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set('page', String(page));
+    navigate({ pathname: '/products', search: `?${searchParams.toString()}` });
+  };
+
+  const navigateCategory = (categoryId?: number) => {
+    const searchParams = new URLSearchParams();
+    if (categoryId != null) {
+      searchParams.set('category', String(categoryId));
+    }
+    searchParams.set('page', '1');
+    navigate({ pathname: '/products', search: `?${searchParams.toString()}` });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header />
@@ -158,7 +193,7 @@ export default function ProductList() {
                 <span className="text-sm">Bộ lọc</span>
               </button>
               <button
-                onClick={() => navigate('/products')}
+                onClick={() => navigateCategory()}
                 className={`px-4 py-2 text-sm rounded-sm flex-shrink-0 transition-colors ${
                   !selectedCategory ? 'bg-orange-600 text-white' : 'border border-slate-300 hover:bg-slate-50'
                 }`}
@@ -168,7 +203,7 @@ export default function ProductList() {
               {categories.map((category) => (
                 <button
                   key={category.id}
-                  onClick={() => navigate(`/products?category=${category.id}`)}
+                  onClick={() => navigateCategory(category.id)}
                   className={`px-4 py-2 text-sm rounded-sm flex-shrink-0 transition-colors ${
                     selectedCategory === category.name
                       ? 'bg-orange-600 text-white'
@@ -277,17 +312,52 @@ export default function ProductList() {
           )}
 
           {/* THANH PHÂN TRANG */}
-          <div className="flex items-center justify-center gap-2 mt-8">
-            <button className="px-4 py-2 text-sm border border-slate-300 rounded-sm hover:bg-slate-50 disabled:opacity-40" disabled>
-              ‹ Trước
-            </button>
-            <button className="px-4 py-2 text-sm bg-orange-600 text-white rounded-sm font-medium">1</button>
-            <button className="px-4 py-2 text-sm border border-slate-300 rounded-sm hover:bg-slate-50">2</button>
-            <button className="px-4 py-2 text-sm border border-slate-300 rounded-sm hover:bg-slate-50">3</button>
-            <button className="px-4 py-2 text-sm border border-slate-300 rounded-sm hover:bg-slate-50">
-              Sau ›
-            </button>
-          </div>
+          {totalPages > 1 && (
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => updatePage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 text-sm border border-slate-300 rounded-sm hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ‹ Trước
+              </button>
+
+              {pageNumbers.map((page, index) => {
+                const previousPage = pageNumbers[index - 1];
+                const shouldShowEllipsis = index > 0 && previousPage !== undefined && page - previousPage > 1;
+
+                return (
+                  <span key={page} className="flex items-center gap-2">
+                    {shouldShowEllipsis ? <span className="px-2 text-slate-400">...</span> : null}
+                    <button
+                      type="button"
+                      onClick={() => updatePage(page)}
+                      className={`min-w-10 px-4 py-2 text-sm rounded-sm border transition-colors ${
+                        currentPage === page
+                          ? 'bg-orange-600 text-white border-orange-600 font-medium'
+                          : 'border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  </span>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => updatePage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 text-sm border border-slate-300 rounded-sm hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Sau ›
+              </button>
+              <div className="w-full text-center text-xs text-slate-500 mt-2">
+                Hiển thị {filteredProducts.length} / {totalProducts} sản phẩm
+              </div>
+            </div>
+          )}
         </div>
       </main>
 

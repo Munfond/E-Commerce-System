@@ -22,11 +22,9 @@ import OrderDetail from "./pages/OrderDetail";
 import SellerGuard from "./auth/SellerGuard";
 import AdminGuard from "./auth/AdminGuard";
 import AdminLayout from "./admin/AdminLayout";
-import AdminDashboard from "./pages/AdminDashboard";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminCategoryForm from "./pages/admin/AdminCategoryForm";
 import AdminOrders from "./pages/admin/AdminOrders";
-import AdminPendingProducts from "./pages/admin/AdminPendingProducts";
 import AdminShops from "./pages/admin/AdminShops";
 import AdminUsers from "./pages/admin/AdminUsers";
 import UserGuard from "./auth/UserGuard";
@@ -39,6 +37,14 @@ import SellerOnboardingTax from "./pages/SellerOnboardingTax";
 import SellerOnboardingDone from "./pages/SellerOnboardingDone";
 import ShopDetails from './pages/ShopDetails';
 import GoogleOAuthCallback from './pages/GoogleOAuthCallback';
+import About from './pages/info/About';
+import Careers from './pages/info/Careers';
+import Terms from './pages/info/Terms';
+import Privacy from './pages/info/Privacy';
+import BuyingGuide from './pages/info/BuyingGuide';
+import Returns from './pages/info/Returns';
+import PaymentMethods from './pages/info/PaymentMethods';
+import Contact from './pages/info/Contact';
 
 export const router = createBrowserRouter([
   {
@@ -48,6 +54,14 @@ export const router = createBrowserRouter([
       { path: "login", Component: Login },
       { path: "register", Component: Register },
       { path: "forgot-password", Component: ForgotPassword },
+      { path: "about", Component: About },
+      { path: "careers", Component: Careers },
+      { path: "terms", Component: Terms },
+      { path: "privacy", Component: Privacy },
+      { path: "buying-guide", Component: BuyingGuide },
+      { path: "returns", Component: Returns },
+      { path: "payment-methods", Component: PaymentMethods },
+      { path: "contact", Component: Contact },
       { path: "products", Component: ProductList },
       { path: "products/:id", Component: ProductDetail },
       { path: "search", Component: Search },
@@ -62,13 +76,10 @@ export const router = createBrowserRouter([
             path: "",
             Component: AdminLayout,
             children: [
-              { index: true, Component: AdminDashboard },
               { path: "categories", Component: AdminCategories },
               { path: "categories/add", Component: AdminCategoryForm },
               { path: "categories/:id/edit", Component: AdminCategoryForm },
               { path: "orders", Component: AdminOrders },
-              { path: "products/pending", Component: AdminPendingProducts },
-              { path: "products/:id", Component: AdminPendingProducts },
               { path: "shops", Component: AdminShops },
               { path: "users", Component: AdminUsers },
             ],

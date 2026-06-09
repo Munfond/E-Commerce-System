@@ -83,7 +83,7 @@ export async function searchProductsByKeyword(
   });
 }
 
-export async function listCustomerProducts(page = 1, limit = 200) {
+export async function listCustomerProducts(page = 1, limit = 24) {
   return api.get<CustomerProductSearchResponseDto>(endpoints.products.customerSearch, {
     auth: false,
     query: {

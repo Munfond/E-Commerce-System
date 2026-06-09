@@ -68,8 +68,8 @@ export default function Search() {
   const [totalResults, setTotalResults] = useState(0);
   const [keyword, setKeyword] = useState('');
   const { addToCart, buyNow } = useCart();
+  const pageSize = 20;
 
-  // Fetch search results when keyword or page changes
   const fetchSearchResults = (searchKeyword: string, page: number) => {
     if (!searchKeyword.trim()) {
       setSearchResults([]);
@@ -79,10 +79,8 @@ export default function Search() {
     }
 
     setIsLoading(true);
-    searchProductsByKeyword(searchKeyword, page, 20)
+    searchProductsByKeyword(searchKeyword, page, pageSize)
       .then((response) => {
-        console.log('Search response:', response);
-        // Response structure: { data: { success, data, pagination }, status, headers, requestId }
         const apiData = response.data;
         if (apiData?.success && Array.isArray(apiData.data)) {
           const items = apiData.data.map((item) => mapSearchProduct(item));
@@ -90,14 +88,12 @@ export default function Search() {
           setTotalPages(apiData.pagination?.pages ?? 1);
           setTotalResults(apiData.pagination?.total ?? 0);
         } else {
-          console.warn('Invalid response structure:', apiData);
           setSearchResults([]);
           setTotalPages(1);
           setTotalResults(0);
         }
       })
-      .catch((err) => {
-        console.error('Search error:', err);
+      .catch(() => {
         setSearchResults([]);
         setTotalPages(1);
         setTotalResults(0);
@@ -108,23 +104,26 @@ export default function Search() {
       });
   };
 
-  // Handle search keyword from URL
+  const updatePage = (page: number) => {
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set('page', String(page));
+    navigate({ pathname: '/search', search: `?${searchParams.toString()}` });
+  };
+
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1).filter((page) => {
+    return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2;
+  });
+
+  // Handle search keyword and page from URL
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const query = searchParams.get('q') ?? '';
+    const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
     setKeyword(query);
-    setCurrentPage(1);
-    fetchSearchResults(query, 1);
+    setCurrentPage(page);
+    fetchSearchResults(query, page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.search]);
-
-  // Handle page changes
-  useEffect(() => {
-    if (keyword && currentPage > 1) {
-      fetchSearchResults(keyword, currentPage);
-      // Scroll to top
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [currentPage]);
 
   const handleProductClick = (product: Product) => {
     setActiveProduct(product);
@@ -257,24 +256,50 @@ export default function Search() {
               </div>
 
               {totalPages > 1 && (
-                <div className="mt-8 flex items-center justify-center gap-2">
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
                   <button
+                    type="button"
                     disabled={currentPage === 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    onClick={() => updatePage(Math.max(1, currentPage - 1))}
                     className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Trước
                   </button>
-                  <div className="text-slate-600 text-sm">
-                    Trang {currentPage} / {totalPages}
-                  </div>
+
+                  {pageNumbers.map((page, index) => {
+                    const previousPage = pageNumbers[index - 1];
+                    const showEllipsis = index > 0 && previousPage !== undefined && page - previousPage > 1;
+
+                    return (
+                      <span key={page} className="flex items-center gap-2">
+                        {showEllipsis ? <span className="px-2 text-slate-400">...</span> : null}
+                        <button
+                          type="button"
+                          onClick={() => updatePage(page)}
+                          className={`min-w-10 px-4 py-2 rounded-lg border text-sm transition-colors ${
+                            currentPage === page
+                              ? 'bg-orange-600 text-white border-orange-600 font-medium'
+                              : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      </span>
+                    );
+                  })}
+
                   <button
+                    type="button"
                     disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => updatePage(Math.min(totalPages, currentPage + 1))}
                     className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Sau
                   </button>
+
+                  <div className="w-full text-center text-xs text-slate-500 mt-2">
+                    Hiển thị {searchResults.length} / {totalResults} sản phẩm
+                  </div>
                 </div>
               )}
             </>

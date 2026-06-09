@@ -21,20 +21,20 @@ export default function Footer() {
           <div>
             <h3 className="font-semibold text-white mb-4">Về ShopViet</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link to="#" className="hover:text-white transition-colors">Giới thiệu</Link></li>
-              <li><Link to="#" className="hover:text-white transition-colors">Tuyển dụng</Link></li>
-              <li><Link to="#" className="hover:text-white transition-colors">Điều khoản</Link></li>
-              <li><Link to="#" className="hover:text-white transition-colors">Chính sách bảo mật</Link></li>
+              <li><Link to="/about" className="hover:text-white transition-colors">Giới thiệu</Link></li>
+              <li><Link to="/careers" className="hover:text-white transition-colors">Tuyển dụng</Link></li>
+              <li><Link to="/terms" className="hover:text-white transition-colors">Điều khoản</Link></li>
+              <li><Link to="/privacy" className="hover:text-white transition-colors">Chính sách bảo mật</Link></li>
             </ul>
           </div>
 
           <div>
             <h3 className="font-semibold text-white mb-4">Hỗ trợ khách hàng</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link to="#" className="hover:text-white transition-colors">Hướng dẫn mua hàng</Link></li>
-              <li><Link to="#" className="hover:text-white transition-colors">Chính sách đổi trả</Link></li>
-              <li><Link to="#" className="hover:text-white transition-colors">Phương thức thanh toán</Link></li>
-              <li><Link to="#" className="hover:text-white transition-colors">Liên hệ</Link></li>
+              <li><Link to="/buying-guide" className="hover:text-white transition-colors">Hướng dẫn mua hàng</Link></li>
+              <li><Link to="/returns" className="hover:text-white transition-colors">Chính sách đổi trả</Link></li>
+              <li><Link to="/payment-methods" className="hover:text-white transition-colors">Phương thức thanh toán</Link></li>
+              <li><Link to="/contact" className="hover:text-white transition-colors">Liên hệ</Link></li>
             </ul>
           </div>
 

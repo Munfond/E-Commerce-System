@@ -54,8 +54,15 @@ type PaginatedCategoryProducts = {
 
 export const categoryApi = {
   getCategories: () => api.get<CategoryDto[]>(endpoints.categories.root, { auth: false }),
-  getCategoryProducts: (categoryId: string) =>
-    api.get<PaginatedCategoryProducts>(`https://e-commerce-system-aq0y.onrender.com/api/v1/products/category?category=${categoryId}`, { auth: false }),
+  getCategoryProducts: (categoryId: string, page = 1, limit = 24) =>
+    api.get<PaginatedCategoryProducts>(`https://e-commerce-system-aq0y.onrender.com/api/v1/products/category`, {
+      auth: false,
+      query: {
+        category: categoryId,
+        page,
+        limit,
+      },
+    }),
   getCategory: (id: string | number) => api.get<CategoryDto>(`${endpoints.categories.root}/${id}`, { auth: false }),
   createCategory: (payload: CategoryUpsertDto) => {
     const body = new FormData();
