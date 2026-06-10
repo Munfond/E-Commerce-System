@@ -25,6 +25,7 @@ import AdminLayout from "./admin/AdminLayout";
 import AdminCategories from "./pages/admin/AdminCategories";
 import AdminCategoryForm from "./pages/admin/AdminCategoryForm";
 import AdminOrders from "./pages/admin/AdminOrders";
+import AdminProducts from "./pages/admin/AdminProducts";
 import AdminShops from "./pages/admin/AdminShops";
 import AdminUsers from "./pages/admin/AdminUsers";
 import UserGuard from "./auth/UserGuard";
@@ -79,6 +80,7 @@ export const router = createBrowserRouter([
               { path: "categories", Component: AdminCategories },
               { path: "categories/add", Component: AdminCategoryForm },
               { path: "categories/:id/edit", Component: AdminCategoryForm },
+              { path: "products", Component: AdminProducts },
               { path: "orders", Component: AdminOrders },
               { path: "shops", Component: AdminShops },
               { path: "users", Component: AdminUsers },
